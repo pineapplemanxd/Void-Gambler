@@ -577,8 +577,7 @@ const LEGACY_UPGRADES=[
   {icon:'🔱',r:'EPIC',name:'Split Shot +2',desc:'Two extra bullets per volley.',fn:()=>{S.bCount=Math.min(S.bCount+2,7);}},
   {icon:'💊',r:'UNCOMMON',name:'Full Heal',desc:'Restore every hit point.',fn:()=>{S.hp=S.maxHp;}},
   {icon:'❄️',r:'RARE',name:'Chill Aura',desc:'Enemies within 180px move 30% slower.',fn:()=>{S.chillAura=true;}},
-  {icon:'🩸',r:'RARE',name:'Vampiric II',desc:'Upgrade: +1 HP per kill.',fn:()=>{S.vampHeal=1.0;},prereq:()=>S.vampHeal===0},
-  {icon:'🩸',r:'EPIC',name:'Vampiric III',desc:'Upgrade: +1.5 HP per kill.',fn:()=>{S.vampHeal=1.5;},prereq:()=>S.vampHeal===1.0},
+  {icon:'🩸',r:'EPIC',name:'Vampiric III',desc:'Upgrade: +1.5 HP per kill.',fn:()=>{S.vampHeal=1.5;},prereq:()=>S.vampHeal===0},
   {icon:'🩸',r:'LEGENDARY',name:'Vampiric IV',desc:'Upgrade: +2 HP per kill.',fn:()=>{S.vampHeal=2.0;},prereq:()=>S.vampHeal===1.5},
   {icon:'🌀',r:'LEGENDARY',name:'Void Curvature',desc:'Bullets curve toward nearest enemy.',fn:()=>{S.curvedBullets=true;G_NOTIFY={t:'VOID CURVATURE ACTIVE',c:'#aa66ff'};}},
   {icon:'🔮',r:'EPIC',weapon:true,name:'Orbital Orb I',desc:'A damage orb circles you hitting all contacts.',fn:()=>{S.orbLevel=1;},prereq:()=>S.orbLevel===0},
@@ -628,9 +627,9 @@ const BOSS_TYPES=[
   {key:'boss_void',name:'VOID BEHEMOTH',w:60,h:60,glow:0xcc00ff,
    draw(g){g.fillStyle(0x220033);g.fillRect(0,0,60,60);g.fillStyle(0x550088);g.fillRect(4,4,52,52);g.fillStyle(0x9900cc);g.fillRect(8,8,44,44);g.fillStyle(0xcc44ff,.4);g.fillRect(14,14,32,32);g.fillStyle(0xff88ff,.25);g.fillRect(22,22,16,16);g.fillStyle(0x220033);g.fillRect(0,0,6,6);g.fillRect(54,0,6,6);g.fillRect(0,54,6,6);g.fillRect(54,54,6,6);g.fillStyle(0xff88ff,.3);g.fillRect(26,8,8,44);g.fillRect(8,26,44,8);},
    hpBase:600,hpLvl:180,spdMult:0.28,dmg:35,xpDrop:20,phase2Hp:0.45},
-  {key:'boss_titan',name:'VOID TITAN',w:56,h:56,glow:0xff2200,
-   draw(g){g.fillStyle(0x330800);g.fillRect(0,0,56,56);g.fillStyle(0x771100);g.fillRect(3,3,50,50);g.fillStyle(0xcc2200);g.fillRect(6,6,44,44);g.fillStyle(0xff4400,.4);g.fillRect(12,12,32,32);g.fillStyle(0xff8844,.5);g.fillRect(10,24,36,8);g.fillRect(24,10,8,36);g.fillStyle(0xffaa66,.3);g.fillRect(22,22,12,12);g.fillStyle(0x330800);g.fillRect(0,0,5,5);g.fillRect(51,0,5,5);g.fillRect(0,51,5,5);g.fillRect(51,51,5,5);},
-   hpBase:900,hpLvl:220,spdMult:0.22,dmg:45,xpDrop:30,phase2Hp:0.5},
+  {key:'boss_titan',name:'ABYSS DREADNOUGHT',w:64,h:64,glow:0xff2200,
+   draw(g){g.fillStyle(0x1a0600);g.fillRect(0,0,64,64);g.fillStyle(0x4b0d00);g.fillRect(3,3,58,58);g.fillStyle(0x8b1a00);g.fillRect(7,7,50,50);g.fillStyle(0xd62e00,.38);g.fillRect(14,14,36,36);g.fillStyle(0xff9955,.55);g.fillRect(10,29,44,6);g.fillRect(29,10,6,44);g.fillStyle(0xffc08a,.26);g.fillRect(24,24,16,16);g.fillStyle(0x1a0600);g.fillRect(0,0,6,6);g.fillRect(58,0,6,6);g.fillRect(0,58,6,6);g.fillRect(58,58,6,6);},
+   hpBase:1500,hpLvl:320,spdMult:0.33,dmg:62,xpDrop:40,phase2Hp:0.65,special:'dreadnought'},
   {key:'boss_specter',name:'VOID SPECTER',w:50,h:50,glow:0x00ffcc,
    draw(g){g.fillStyle(0x001122);g.fillRect(0,0,50,50);g.fillStyle(0x004466);g.fillRect(3,3,44,44);g.fillStyle(0x008899);g.fillRect(7,7,36,36);g.fillStyle(0x00ffdd,.5);g.fillRect(13,13,24,24);g.fillStyle(0x000000,.7);g.fillRect(20,20,10,10);g.fillStyle(0x00ffee,.8);g.fillRect(22,22,6,6);g.fillStyle(0x00ccbb,.2);g.fillRect(10,3,4,44);g.fillRect(36,3,4,44);g.fillRect(3,10,44,4);g.fillRect(3,36,44,4);},
    hpBase:500,hpLvl:150,spdMult:0.45,dmg:28,xpDrop:18,phase2Hp:0.4,special:'specter_boss'},
@@ -779,6 +778,7 @@ class GameScene extends Phaser.Scene{
 
     const pool=k=>this.physics.add.group({classType:Phaser.Physics.Arcade.Sprite,defaultKey:k,maxSize:600});
     this.bullets=pool('bullet');this.pellets=pool('pellet');this.missiles=pool('missile');
+    this.bossShots=pool('bullet_arc');
     this.enemies=pool('e_grunt');this.gems=pool('gem');this.drops=pool('drop_magnet');
 
     this.player=this.physics.add.sprite(WW/2,WH/2,'player').setCollideWorldBounds(true).setDepth(10);
@@ -798,6 +798,7 @@ class GameScene extends Phaser.Scene{
     this.physics.add.overlap(this.bullets,this.enemies,this._onBulletHit,null,this);
     this.physics.add.overlap(this.pellets,this.enemies,this._onBulletHit,null,this);
     this.physics.add.overlap(this.missiles,this.enemies,this._onMissileHit,null,this);
+    this.physics.add.overlap(this.player,this.bossShots,(p,s)=>{if(!s.active)return;this._retireBossShot(s);this._playerTakeDamage(s.dmg||14);},null,this);
 
     this.spawnTimer=this._mkTimer(spawnInterval(),this._spawnWave);
     this._syncGunTimers();
@@ -1034,22 +1035,78 @@ class GameScene extends Phaser.Scene{
   _bossSpecialAttacks(time){
     const b=this.activeBoss;
     if(!b||!b.active||this.gamePaused)return;
+    const key=(b._bossType&&b._bossType.key)||'boss_void';
+    const phase2=!!b._phase2;
+    const burstCd=phase2?900:1400;
+    const patternCd=phase2?2200:3200;
+    const bossDmg=(b.etype&&b.etype.dmg)||30;
     if(time>(this._bossAtkT||0)){
-      this._bossAtkT=time+2200;
-      const ring=this.add.circle(b.x,b.y,12,0xff4477,.24).setDepth(8).setStrokeStyle(2,0xff88aa,.95);
-      this.tweens.add({targets:ring,scaleX:14,scaleY:14,alpha:0,duration:520,ease:'Quad.out',onComplete:()=>ring.destroy()});
-      if(Phaser.Math.Distance.Between(b.x,b.y,this.player.x,this.player.y)<170)this._playerTakeDamage(18);
+      this._bossAtkT=time+burstCd;
+      const aim=Phaser.Math.Angle.Between(b.x,b.y,this.player.x,this.player.y);
+      if(key==='boss_titan'){
+        const fan=phase2?9:6;
+        const spread=phase2?1.18:0.82;
+        for(let i=0;i<fan;i++){
+          const t=fan===1?0:(i/(fan-1)-0.5);
+          const a=aim+t*spread;
+          this._spawnBossShot(b.x,b.y,a,phase2?360:320,Math.floor(bossDmg*0.48),phase2?1.15:1,0xff6622);
+        }
+        if(phase2){
+          const ringCount=12;
+          const spin=((this._bossSpin||0)+0.35);this._bossSpin=spin;
+          for(let i=0;i<ringCount;i++){
+            const a=spin+(i/ringCount)*Math.PI*2;
+            this._spawnBossShot(b.x,b.y,a,250,Math.floor(bossDmg*0.36),0.95,0xffaa55);
+          }
+        }
+      }else if(key==='boss_specter'){
+        const arms=phase2?16:10;
+        const spin=((this._bossSpin||0)+(phase2?.52:.34));this._bossSpin=spin;
+        for(let i=0;i<arms;i++){
+          const a=spin+(i/arms)*Math.PI*2;
+          const spd=(i%2?290:240)+(phase2?40:0);
+          this._spawnBossShot(b.x,b.y,a,spd,Math.floor(bossDmg*0.34),0.88,0x33ffdd);
+        }
+      }else{
+        const ringCount=phase2?16:10;
+        const spin=((this._bossSpin||0)+(phase2?.42:.22));this._bossSpin=spin;
+        for(let i=0;i<ringCount;i++){
+          const a=spin+(i/ringCount)*Math.PI*2;
+          this._spawnBossShot(b.x,b.y,a,phase2?300:250,Math.floor(bossDmg*0.38),phase2?1.05:.95,0xcc66ff);
+        }
+      }
+      if(Phaser.Math.Distance.Between(b.x,b.y,this.player.x,this.player.y)<(phase2?190:165))this._playerTakeDamage(Math.floor(bossDmg*0.6));
     }
     if(time>(this._bossAtkT2||0)){
-      this._bossAtkT2=time+4600;
-      if(b._bossType&&b._bossType.key==='boss_titan'){
-        const tx=this.player.x,ty=this.player.y;
-        const warn=this.add.circle(tx,ty,22,0xff5500,.18).setDepth(20).setStrokeStyle(2,0xffaa44,.95);
-        this.tweens.add({targets:warn,scaleX:5,scaleY:5,alpha:.08,duration:650,onComplete:()=>{warn.destroy();const blast=this.add.circle(tx,ty,18,0xff3300,.3).setDepth(20);this.tweens.add({targets:blast,scaleX:8,scaleY:8,alpha:0,duration:360,onComplete:()=>blast.destroy()});if(Phaser.Math.Distance.Between(tx,ty,this.player.x,this.player.y)<120)this._playerTakeDamage(26);}});
-      } else if(b._bossType&&b._bossType.key==='boss_specter'){
-        for(let i=0;i<3;i++){this._activateEnemy(b.x+Phaser.Math.Between(-40,40),b.y+Phaser.Math.Between(-40,40),ENEMY_TYPES[3],0.85,true);} 
-      } else {
-        for(let i=0;i<8;i++){const a=(i/8)*Math.PI*2;const p=this.bullets.getFirstDead(true,b.x,b.y,'bullet_arc');if(!p)continue;p.setTexture('bullet_arc').setPosition(b.x,b.y).setActive(true).setVisible(true).setDepth(7);p.body.enable=true;p.body.reset(b.x,b.y);p.body.setVelocity(Math.cos(a)*280,Math.sin(a)*280);p.hitSet=new Set();p.pierceLeft=0;p.baseDmg=14;p.hitCount=0;p.falloff=1;p.gunId='boss';}
+      this._bossAtkT2=time+patternCd;
+      if(key==='boss_titan'){
+        const zones=phase2?5:3;
+        for(let i=0;i<zones;i++){
+          const tx=this.player.x+Phaser.Math.Between(-120,120),ty=this.player.y+Phaser.Math.Between(-120,120);
+          const warn=this.add.circle(tx,ty,18,0xff5500,.18).setDepth(20).setStrokeStyle(2,0xffaa44,.95);
+          this.tweens.add({targets:warn,scaleX:5,scaleY:5,alpha:.08,duration:phase2?500:650,onComplete:()=>{
+            warn.destroy();
+            const blast=this.add.circle(tx,ty,16,0xff3300,.32).setDepth(20);
+            this.tweens.add({targets:blast,scaleX:7,scaleY:7,alpha:0,duration:320,onComplete:()=>blast.destroy()});
+            if(Phaser.Math.Distance.Between(tx,ty,this.player.x,this.player.y)<125)this._playerTakeDamage(Math.floor(bossDmg*0.68));
+          }});
+        }
+      }else if(key==='boss_specter'){
+        const spawnCount=phase2?5:3;
+        for(let i=0;i<spawnCount;i++)this._activateEnemy(b.x+Phaser.Math.Between(-50,50),b.y+Phaser.Math.Between(-50,50),ENEMY_TYPES[3],0.9,true);
+        const rain=phase2?14:8;
+        for(let i=0;i<rain;i++){
+          const sx=this.player.x+Phaser.Math.Between(-220,220),sy=this.cameras.main.worldView.top-26;
+          this._spawnBossShot(sx,sy,Math.PI/2,phase2?340:290,Math.floor(bossDmg*0.3),0.82,0x66ffee);
+        }
+      }else{
+        const fan=phase2?11:7;
+        const aim=Phaser.Math.Angle.Between(b.x,b.y,this.player.x,this.player.y);
+        for(let i=0;i<fan;i++){
+          const t=fan===1?0:(i/(fan-1)-0.5);
+          const a=aim+t*(phase2?1.35:0.9);
+          this._spawnBossShot(b.x,b.y,a,phase2?390:340,Math.floor(bossDmg*0.44),phase2?1.15:1,0xe088ff);
+        }
       }
     }
   }
@@ -1168,6 +1225,25 @@ class GameScene extends Phaser.Scene{
     try{if(p.preFX)p.preFX.clear();}catch(e){}
   }
 
+  _retireBossShot(p){
+    if(!p)return;p.setActive(false).setVisible(false);
+    if(p.body){p.body.enable=false;p.body.setVelocity(0,0);}
+    p.clearTint();p.setScale(1);
+    p.setPosition(-9999,-9999);
+    try{if(p.preFX)p.preFX.clear();}catch(e){}
+  }
+
+  _spawnBossShot(x,y,angle,speed,dmg,scale=1,tint=0xff6677){
+    const p=this.bossShots.getFirstDead(true,x,y,'bullet_arc');
+    if(!p)return null;
+    p.setTexture('bullet_arc').setPosition(x,y).setActive(true).setVisible(true).setDepth(9).setRotation(angle).setScale(scale).setTint(tint);
+    p.body.enable=true;p.body.reset(x,y);
+    p.body.setVelocity(Math.cos(angle)*speed,Math.sin(angle)*speed);
+    p.dmg=dmg||14;
+    p.lifeEnd=this.time.now+5200;
+    return p;
+  }
+
   _killEnemy(enemy){
     if(!enemy.active)return;
     const ex=enemy.x,ey=enemy.y,type=enemy.etype||ENEMY_TYPES[0];
@@ -1181,6 +1257,7 @@ class GameScene extends Phaser.Scene{
     if(enemy._isBoss){
       document.getElementById('boss-bar-wrap').style.display='none';
       this.activeBoss=null;
+      this.bossShots.getChildren().forEach(s=>this._retireBossShot(s));
       const crate=this.drops.getFirstDead(true,ex,ey,'drop_legend');
       if(crate){crate.setTexture('drop_legend').setPosition(ex,ey).setActive(true).setVisible(true).setDepth(6);crate.body.enable=true;crate.body.reset(ex,ey);crate.dropType='drop_legend';}
       SFX.bossdie();
@@ -1206,8 +1283,7 @@ class GameScene extends Phaser.Scene{
       const l=this._luckFactor();
       const chance=(Math.max(0.008,0.075-S.level*0.0028)+(type.key==='e_brute'?0.04:(type.key==='e_sentinel'?0.015:0)))*l;
       if(Math.random()<chance){
-        const crateChance=Math.min(.7,0.14*l);
-        const r=Math.random(),key=r<crateChance?'drop_legend':(r<(.46+crateChance*.2)?'drop_magnet':r<(.76+crateChance*.15)?'drop_shield':'drop_frenzy');
+        const r=Math.random(),key=r<.45?'drop_magnet':r<.75?'drop_shield':'drop_frenzy';
         const it=this.drops.getFirstDead(true,ex,ey,key);
         if(it){it.setPosition(ex,ey).setActive(true).setVisible(true).setDepth(4).setTexture(key);it.body.enable=true;it.body.reset(ex,ey);it.body.setVelocity(0,0);it.dropType=key;try{if(it.preFX){it.preFX.clear();it.preFX.addGlow(key==='drop_shield'?0x4488ff:key==='drop_magnet'?0x00ccff:0xff4400,8,0,false,.1,10);}}catch(e){}}
       }
@@ -1371,8 +1447,34 @@ class GameScene extends Phaser.Scene{
     const allItems=buildItemUpgrades();
     const t4=allItems.filter(x=>x.r==='EPIC');
     const nonT4=allItems.filter(x=>x.r!=='EPIC');
+    const crateWeapon=(g=>(
+      {icon:'🔫',r:'LEGENDARY',weapon:true,name:g.name+' (Legendary)',desc:g.desc,
+       fn:()=>{
+         const has=S.loadout.includes(g.id);
+         if(!has&&S.loadout.length>=S.maxWeapons){
+           const replaceIdx=S.loadout.reduce((best,i,idx)=>{
+             const lvl=S.gunLevels[i]||1;
+             return lvl<(S.gunLevels[best]||1)?i:best;
+           },S.loadout[0]);
+           S.loadout=S.loadout.map(id=>id===replaceIdx?g.id:id);
+           this._notify('LOADOUT FULL: REPLACED '+(this.gunMap[replaceIdx]&&this.gunMap[replaceIdx].name||'WEAPON'),'#ff9955');
+         }else if(!has)S.loadout.push(g.id);
+         S.currentGun=g.id;
+         S.gunLevels[g.id]=Math.min(4,(S.gunLevels[g.id]||1)+1);
+       }}
+    ));
+    const legendaryPool=GUNS.filter(g=>g.rarity==='LEGENDARY');
+    const ownedLegendary=legendaryPool.filter(g=>S.loadout.includes(g.id));
+    const addableLegendary=legendaryPool.filter(g=>!S.loadout.includes(g.id));
+    const legendPick=(addableLegendary.length?addableLegendary:ownedLegendary)[Phaser.Math.Between(0,(addableLegendary.length?addableLegendary:ownedLegendary).length-1)]||legendaryPool[0];
     const choices=[];
+    if(legendPick)choices.push(crateWeapon(legendPick));
     if(t4.length)choices.push(t4[Phaser.Math.Between(0,t4.length-1)]);
+    const luckLegendChance=Phaser.Math.Clamp(0.18+S.luck/520,0.18,0.58);
+    if(Math.random()<luckLegendChance&&legendaryPool.length){
+      const roll=legendaryPool[Phaser.Math.Between(0,legendaryPool.length-1)];
+      if(!choices.find(c=>c.name.includes(roll.name)))choices.push(crateWeapon(roll));
+    }
     while(choices.length<4&&nonT4.length){
       const i=Phaser.Math.Between(0,nonT4.length-1);
       const it=nonT4.splice(i,1)[0];
@@ -1416,7 +1518,7 @@ class GameScene extends Phaser.Scene{
         const rarityBase={COMMON:1,UNCOMMON:.82,RARE:.52,EPIC:.2,LEGENDARY:.015};
         const rMul=x=>{
           const b=rarityBase[x.r]||1;
-          if(x.r==='LEGENDARY')return b*luckBias*(1+Math.min(.12,S.level/220));
+          if(x.r==='LEGENDARY')return b*Phaser.Math.Clamp(1+S.luck/140,0.75,3.5)*(1+Math.min(.25,S.level/120));
           if(x.r==='EPIC')return b*luckBias*waveBias;
           if(x.r==='RARE')return b*(0.9+0.1*luckBias)*waveBias;
           if(x.r==='UNCOMMON')return b*(0.95+0.08*luckBias);
@@ -1664,6 +1766,8 @@ class GameScene extends Phaser.Scene{
     const cv=this.cameras.main.worldView,m=220;
     const cull=p=>{if(!p.active)return;if(p.x<cv.left-m||p.x>cv.right+m||p.y<cv.top-m||p.y>cv.bottom+m)this._retireProj(p);};
     this.bullets.getChildren().forEach(cull);this.pellets.getChildren().forEach(cull);this.missiles.getChildren().forEach(cull);
+    const cullBoss=p=>{if(!p.active)return;if((p.lifeEnd&&time>p.lifeEnd)||p.x<cv.left-m||p.x>cv.right+m||p.y<cv.top-m||p.y>cv.bottom+m)this._retireBossShot(p);};
+    this.bossShots.getChildren().forEach(cullBoss);
     // Glow pulse
     if(this._pGlow)this._pGlow.outerStrength=8+Math.sin(time*.0025)*5;
     // HUD time
