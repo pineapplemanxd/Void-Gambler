@@ -192,6 +192,12 @@ body{background:var(--bg);display:flex;justify-content:center;align-items:center
           <button id="save-import" class="mini-btn">Import Save</button>
           <input id="save-import-file" type="file" accept="application/json" style="display:none" />
         </div>
+        <div style="display:flex;flex-direction:column;gap:4px;background:rgba(0,0,0,.22);border:1px solid #241047;border-radius:6px;padding:7px">
+          <label style="font-size:9px;color:#8f73be;display:flex;justify-content:space-between;gap:8px">Music Volume <span id="music-vol-val">55%</span></label>
+          <input id="music-vol" type="range" min="0" max="100" step="1" value="55" style="width:100%" />
+          <label style="font-size:9px;color:#8f73be;display:flex;justify-content:space-between;gap:8px">SFX Volume <span id="sfx-vol-val">80%</span></label>
+          <input id="sfx-vol" type="range" min="0" max="100" step="1" value="80" style="width:100%" />
+        </div>
         <div style="width:100%;height:1px;background:rgba(255,255,255,.05);margin:6px 0 2px"></div>
         <div style="font-size:9px;color:#5a3a85;letter-spacing:.14em;text-transform:uppercase;align-self:center">Boss Training</div>
         <select id="train-boss-select" class="char-select"></select>
@@ -216,11 +222,12 @@ body{background:var(--bg);display:flex;justify-content:center;align-items:center
 <script>
 
 'use strict';
+let AUDIO_SETTINGS={music:0.55,sfx:0.8};
 const SFX=(()=>{
   let ctx=null;
   const ac=()=>{if(!ctx)try{ctx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}if(ctx.state==='suspended')ctx.resume();return ctx;};
-  const tone=(freq,type,dur,vol,endF,delay=0)=>{const c=ac();if(!c)return;try{const t=c.currentTime+delay,o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type=type;o.frequency.setValueAtTime(freq,t);if(endF)o.frequency.exponentialRampToValueAtTime(Math.max(endF,1),t+dur);g.gain.setValueAtTime(Math.min(vol,1),t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);o.start(t);o.stop(t+dur);}catch(e){}};
-  const noise=(dur,vol,delay=0)=>{const c=ac();if(!c)return;try{const t=c.currentTime+delay,buf=c.createBuffer(1,c.sampleRate*dur,c.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1);const s=c.createBufferSource(),g=c.createGain();s.buffer=buf;s.connect(g);g.connect(c.destination);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);s.start(t);}catch(e){}};
+  const tone=(freq,type,dur,vol,endF,delay=0)=>{const c=ac();if(!c)return;try{const t=c.currentTime+delay,o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type=type;o.frequency.setValueAtTime(freq,t);if(endF)o.frequency.exponentialRampToValueAtTime(Math.max(endF,1),t+dur);const v=Math.min(Math.max(0,vol*(AUDIO_SETTINGS.sfx==null?1:AUDIO_SETTINGS.sfx)),1);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);o.start(t);o.stop(t+dur);}catch(e){}};
+  const noise=(dur,vol,delay=0)=>{const c=ac();if(!c)return;try{const t=c.currentTime+delay,buf=c.createBuffer(1,c.sampleRate*dur,c.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1);const s=c.createBufferSource(),g=c.createGain();s.buffer=buf;s.connect(g);g.connect(c.destination);const v=Math.min(Math.max(0,vol*(AUDIO_SETTINGS.sfx==null?1:AUDIO_SETTINGS.sfx)),1);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);s.start(t);}catch(e){}};
   return{
     shoot:()=>tone(820,'square',.055,.04,190),
     shotgun:()=>{tone(650,'sawtooth',.04,.05,80);noise(.03,.04);},
@@ -328,10 +335,13 @@ const GUNS=[
 ];
 
 const SAVE_KEY='voidGamblerSaveV2';
-const META_DEFAULT={totalKills:0,totalMaterials:0,totalDeaths:0,bestLevel:1,bestUniqueWeapons:1,selectedCharacter:'well_rounded',unlockedChars:{}};
+const META_DEFAULT={totalKills:0,totalMaterials:0,totalDeaths:0,bestLevel:1,bestUniqueWeapons:1,selectedCharacter:'well_rounded',unlockedChars:{},audio:{music:0.55,sfx:0.8}};
 let META=loadMeta();
 let SELECTED_CHARACTER=META.selectedCharacter||'well_rounded';
 let TRAINING_CFG={enabled:false,bossKey:null,weapons:[]};
+if(!META.audio)META.audio={music:0.55,sfx:0.8};
+AUDIO_SETTINGS.music=Math.min(1,Math.max(0,Number(META.audio.music)||0.55));
+AUDIO_SETTINGS.sfx=Math.min(1,Math.max(0,Number(META.audio.sfx)||0.8));
 
 function loadMeta(){
   try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return {...META_DEFAULT};return {...META_DEFAULT,...JSON.parse(raw)};}catch(e){return {...META_DEFAULT};}
@@ -703,6 +713,10 @@ class MenuScene extends Phaser.Scene{
     const info=document.getElementById('char-info');
     const trainBoss=document.getElementById('train-boss-select');
     const trainWeapons=document.getElementById('train-weapons');
+    const musicVol=document.getElementById('music-vol');
+    const sfxVol=document.getElementById('sfx-vol');
+    const musicVolVal=document.getElementById('music-vol-val');
+    const sfxVolVal=document.getElementById('sfx-vol-val');
     sel.innerHTML='';
     trainBoss.innerHTML='';
     trainWeapons.innerHTML='';
@@ -728,6 +742,12 @@ class MenuScene extends Phaser.Scene{
     document.getElementById('save-export').onclick=()=>exportSaveFile();
     document.getElementById('save-import').onclick=()=>document.getElementById('save-import-file').click();
     document.getElementById('save-import-file').onchange=e=>{const f=e.target.files&&e.target.files[0];if(!f)return;importSaveFile(f,ok=>{if(ok)this.scene.restart();});};
+    musicVol.value=String(Math.round((AUDIO_SETTINGS.music||0.55)*100));
+    sfxVol.value=String(Math.round((AUDIO_SETTINGS.sfx||0.8)*100));
+    musicVolVal.textContent=musicVol.value+'%';
+    sfxVolVal.textContent=sfxVol.value+'%';
+    musicVol.oninput=()=>{AUDIO_SETTINGS.music=Math.min(1,Math.max(0,Number(musicVol.value)/100));musicVolVal.textContent=musicVol.value+'%';META.audio={music:AUDIO_SETTINGS.music,sfx:AUDIO_SETTINGS.sfx};saveMeta();};
+    sfxVol.oninput=()=>{AUDIO_SETTINGS.sfx=Math.min(1,Math.max(0,Number(sfxVol.value)/100));sfxVolVal.textContent=sfxVol.value+'%';META.audio={music:AUDIO_SETTINGS.music,sfx:AUDIO_SETTINGS.sfx};saveMeta();};
     saveMeta();
     document.getElementById('start-btn').onclick=()=>{TRAINING_CFG={enabled:false,bossKey:null,weapons:[]};document.getElementById('menu-ov').classList.remove('visible');this.scene.start('GameScene');};
     document.getElementById('start-training').onclick=()=>{
@@ -781,6 +801,7 @@ class GameScene extends Phaser.Scene{
     ENEMY_TYPES.forEach(t=>mk(t.key,t.w,t.h,t.draw));
     BOSS_TYPES.forEach(b=>mk(b.key,b.w,b.h,b.draw));
     BOSS_TYPES.forEach(b=>{if(b.music)this.load.audio('bgm_'+b.key,b.music);});
+    this.load.audio('bgm_background','music/background.mp3');
     mk('e_mini',13,13,g=>{g.fillStyle(0x771111);g.fillRect(0,0,13,13);g.fillStyle(0xaa1111);g.fillRect(1,1,11,11);g.fillStyle(0xff3333,.5);g.fillRect(3,3,4,4);});
     mk('bullet',15,5,g=>{g.fillStyle(0xddddff);g.fillRect(0,0,15,5);g.fillStyle(0xffffff);g.fillRect(0,1,11,3);});
     mk('bullet_laser',18,4,g=>{g.fillStyle(0x66ccff);g.fillRect(0,0,18,4);g.fillStyle(0xccf5ff);g.fillRect(0,1,14,2);});
@@ -821,6 +842,8 @@ class GameScene extends Phaser.Scene{
     this._bossTrackKey='';
     this._bossTrackHtml=null;
     this._bossTrackHtmlKey='';
+    this._bgTrack=null;
+    this._bgTrackHtml=null;
     this._trainingMode=!!TRAINING_CFG.enabled;
     this._trainingBossKey=TRAINING_CFG.bossKey||BOSS_TYPES[0].key;
     this.gunMap=Object.fromEntries(GUNS.map(g=>[g.id,g]));
@@ -883,7 +906,8 @@ class GameScene extends Phaser.Scene{
     document.getElementById('hud').style.display='flex';
     document.getElementById('boss-bar-wrap').style.display='none';
     this._updateHUD();
-    this.events.once('shutdown',()=>this._setBossMusic(false));
+    this._setBackgroundMusic(true);
+    this.events.once('shutdown',()=>{this._setBossMusic(false);this._setBackgroundMusic(false);});
   }
 
   _mkTimer(ms,cb){return this.time.addEvent({delay:ms,callback:cb,callbackScope:this,loop:true});}
@@ -1090,6 +1114,7 @@ class GameScene extends Phaser.Scene{
     this._bossAtkT=this.time.now+1600;
     this._bossAtkT2=this.time.now+4200;
     this._bossAtkT3=this.time.now+6400;
+    this._setBackgroundMusic(false);
     this._setBossMusic(true,bt.key);
     document.getElementById('boss-name').textContent=bt.name;
     document.getElementById('boss-hp-fill').style.width='100%';
@@ -1541,6 +1566,30 @@ class GameScene extends Phaser.Scene{
     this.bossLasers=[];
   }
 
+  _setBackgroundMusic(active){
+    if(active){
+      if(this._bgTrack&&this._bgTrack.isPlaying){this._bgTrack.setVolume(AUDIO_SETTINGS.music);return;}
+      if(this._bgTrackHtml&&!this._bgTrackHtml.paused){this._bgTrackHtml.volume=AUDIO_SETTINGS.music;return;}
+      if(this.cache&&this.cache.audio&&this.cache.audio.exists('bgm_background')){
+        if(this._bgTrackHtml){this._bgTrackHtml.pause();this._bgTrackHtml.currentTime=0;this._bgTrackHtml=null;}
+        if(!this._bgTrack)this._bgTrack=this.sound.add('bgm_background',{loop:true,volume:AUDIO_SETTINGS.music});
+        else this._bgTrack.setVolume(AUDIO_SETTINGS.music);
+        try{if(this.sound&&this.sound.context&&this.sound.context.state==='suspended')this.sound.context.resume();}catch(e){}
+        this._bgTrack.play();
+        return;
+      }
+      try{
+        if(this._bgTrack){this._bgTrack.stop();this._bgTrack.destroy();this._bgTrack=null;}
+        if(!this._bgTrackHtml){this._bgTrackHtml=new Audio('music/background.mp3');this._bgTrackHtml.loop=true;}
+        this._bgTrackHtml.volume=AUDIO_SETTINGS.music;
+        this._bgTrackHtml.play().catch(()=>{});
+      }catch(e){}
+      return;
+    }
+    if(this._bgTrack){this._bgTrack.stop();this._bgTrack.destroy();this._bgTrack=null;}
+    if(this._bgTrackHtml){this._bgTrackHtml.pause();this._bgTrackHtml.currentTime=0;this._bgTrackHtml=null;}
+  }
+
   _setBossMusic(active,bossKey=null){
     if(active){
       const key=bossKey||((this.activeBoss&&this.activeBoss._bossType&&this.activeBoss._bossType.key)||'');
@@ -1552,7 +1601,7 @@ class GameScene extends Phaser.Scene{
         if(this._bossTrackHtml){this._bossTrackHtml.pause();this._bossTrackHtml.currentTime=0;this._bossTrackHtml=null;this._bossTrackHtmlKey='';}
         if(this._bossTrack&&this._bossTrackKey===audioKey&&this._bossTrack.isPlaying)return;
         if(this._bossTrack){this._bossTrack.stop();this._bossTrack.destroy();this._bossTrack=null;this._bossTrackKey='';}
-        this._bossTrack=this.sound.add(audioKey,{loop:true,volume:0.55});
+        this._bossTrack=this.sound.add(audioKey,{loop:true,volume:AUDIO_SETTINGS.music});
         try{if(this.sound&&this.sound.context&&this.sound.context.state==='suspended')this.sound.context.resume();}catch(e){}
         this._bossTrack.play();
         this._bossTrackKey=audioKey;
@@ -1568,7 +1617,7 @@ class GameScene extends Phaser.Scene{
         if(this._bossTrackHtml){this._bossTrackHtml.pause();this._bossTrackHtml.currentTime=0;this._bossTrackHtml=null;this._bossTrackHtmlKey='';}
         try{
           const a=new Audio(musicPath);
-          a.loop=true;a.volume=0.55;
+          a.loop=true;a.volume=AUDIO_SETTINGS.music;
           a.play().catch(()=>{});
           this._bossTrackHtml=a;
           this._bossTrackHtmlKey=musicPath;
@@ -1598,6 +1647,7 @@ class GameScene extends Phaser.Scene{
       document.getElementById('boss-bar-wrap').style.display='none';
       this.activeBoss=null;
       this._setBossMusic(false);
+      this._setBackgroundMusic(true);
       this._clearBossLasers();
       this.bossShots.getChildren().forEach(s=>this._retireBossShot(s));
       if(!this._trainingMode){
@@ -1908,6 +1958,7 @@ class GameScene extends Phaser.Scene{
     if(this.gamePaused)return;
     this.gamePaused=true;this.physics.pause();
     this._setBossMusic(false);
+    this._setBackgroundMusic(false);
     META.totalDeaths++;
     META.bestLevel=Math.max(META.bestLevel,S.level);
     META.bestUniqueWeapons=Math.max(META.bestUniqueWeapons,S.loadout.length);
@@ -1995,7 +2046,9 @@ class GameScene extends Phaser.Scene{
 
   update(time,delta){
     if(this.gamePaused)return;
-    this._setBossMusic(!!(this.activeBoss&&this.activeBoss.active),(this.activeBoss&&this.activeBoss._bossType&&this.activeBoss._bossType.key)||null);
+    const bossActive=!!(this.activeBoss&&this.activeBoss.active);
+    this._setBackgroundMusic(!bossActive);
+    this._setBossMusic(bossActive,bossActive?(this.activeBoss&&this.activeBoss._bossType&&this.activeBoss._bossType.key)||null:null);
     this._bossSpecialAttacks(time);
     this._tickBossLasers(time);
     if(Phaser.Input.Keyboard.JustDown(this.escKey)||Phaser.Input.Keyboard.JustDown(this.pKey))this._togglePause();
