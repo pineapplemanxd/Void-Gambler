@@ -232,6 +232,36 @@ body{background:var(--bg);display:flex;justify-content:center;align-items:center
 
 'use strict';
 let AUDIO_SETTINGS={music:0.55,sfx:0.8};
+const IS_ELECTRON=typeof navigator!=='undefined'&&/Electron/i.test(navigator.userAgent||'');
+
+window.addEventListener('error',e=>{
+  try{
+    let box=document.getElementById('fatal-log');
+    if(!box){
+      box=document.createElement('div');
+      box.id='fatal-log';
+      box.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;max-height:42vh;overflow:auto;z-index:99999;background:rgba(20,0,0,.92);color:#ffb3b3;border:1px solid #ff5577;padding:8px;font:12px/1.35 monospace;white-space:pre-wrap';
+      document.body.appendChild(box);
+    }
+    box.textContent+='\n[error] '+(e.message||'unknown')+' @ '+(e.filename||'')+':'+(e.lineno||0)+':'+(e.colno||0);
+    console.error('[fatal]',e.error||e.message||e);
+  }catch(_err){}
+});
+
+window.addEventListener('unhandledrejection',e=>{
+  try{
+    const r=e&&e.reason?String(e.reason):'unknown rejection';
+    let box=document.getElementById('fatal-log');
+    if(!box){
+      box=document.createElement('div');
+      box.id='fatal-log';
+      box.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;max-height:42vh;overflow:auto;z-index:99999;background:rgba(20,0,0,.92);color:#ffb3b3;border:1px solid #ff5577;padding:8px;font:12px/1.35 monospace;white-space:pre-wrap';
+      document.body.appendChild(box);
+    }
+    box.textContent+='\n[promise] '+r;
+    console.error('[promise]',e.reason);
+  }catch(_err){}
+});
 const RPC=(function(){
   let lastDetails='';
   let lastState='';
@@ -889,8 +919,10 @@ class GameScene extends Phaser.Scene{
     mk('player',28,28,g=>{g.fillStyle(0x0e3acc);g.fillRect(0,0,28,28);g.fillStyle(0x2255ff);g.fillRect(2,2,24,24);g.fillStyle(0x66aaff,.8);g.fillRect(5,5,9,9);g.fillStyle(0x0e3acc);[[0,0],[25,0],[0,25],[25,25]].forEach(([x,y])=>g.fillRect(x,y,3,3));});
     ENEMY_TYPES.forEach(t=>mk(t.key,t.w,t.h,t.draw));
     BOSS_TYPES.forEach(b=>mk(b.key,b.w,b.h,b.draw));
-    BOSS_TYPES.forEach(b=>{if(b.music)this.load.audio('bgm_'+b.key,b.music);});
-    this.load.audio('bgm_background','music/background.mp3');
+    if(!IS_ELECTRON){
+      BOSS_TYPES.forEach(b=>{if(b.music)this.load.audio('bgm_'+b.key,b.music);});
+      this.load.audio('bgm_background','music/background.mp3');
+    }
     mk('e_mini',13,13,g=>{g.fillStyle(0x771111);g.fillRect(0,0,13,13);g.fillStyle(0xaa1111);g.fillRect(1,1,11,11);g.fillStyle(0xff3333,.5);g.fillRect(3,3,4,4);});
     mk('bullet',15,5,g=>{g.fillStyle(0xddddff);g.fillRect(0,0,15,5);g.fillStyle(0xffffff);g.fillRect(0,1,11,3);});
     mk('bullet_laser',18,4,g=>{g.fillStyle(0x66ccff);g.fillRect(0,0,18,4);g.fillStyle(0xccf5ff);g.fillRect(0,1,14,2);});

@@ -5,6 +5,16 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const RPC = require('discord-rpc');
 
 const DISCORD_CLIENT_ID = '1482793632263049389';
+const DEBUG_ELECTRON = process.env.VG_DEBUG === '1';
+const FORCE_SOFTWARE_RENDER = process.env.VG_SOFTWARE_RENDER === '1';
+
+if (FORCE_SOFTWARE_RENDER) {
+  // Fallback mode for systems with broken GPU drivers.
+  app.disableHardwareAcceleration();
+} else {
+  // Keep hardware acceleration for smooth gameplay.
+  app.commandLine.appendSwitch('ignore-gpu-blocklist');
+}
 
 let win = null;
 let rpc = null;
@@ -28,6 +38,23 @@ function createWindow() {
   });
 
   win.removeMenu();
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key === 'F11') {
+      event.preventDefault();
+      win.setFullScreen(!win.isFullScreen());
+    }
+  });
+  if (DEBUG_ELECTRON) {
+    win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+      console.log(`[renderer:${level}] ${message} (${sourceId}:${line})`);
+    });
+    win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+      console.error(`[did-fail-load] ${errorCode} ${errorDescription} ${validatedURL}`);
+    });
+    win.webContents.on('render-process-gone', (_event, details) => {
+      console.error('[render-process-gone]', details);
+    });
+  }
   win.loadFile(path.join(__dirname, 'index.html'));
 }
 
