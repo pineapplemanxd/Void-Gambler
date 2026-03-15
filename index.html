@@ -240,7 +240,7 @@ const GW=900,GH=580,WW=4000,WH=4000;
 let G_NOTIFY=null;
 
 const DEFAULTS={
-  spd:180,hp:100,maxHp:100,dmg:25,
+  spd:180,hp:100,maxHp:100,dmg:0,baseDmg:25,
   fireMs:1000,bSpd:520,pierce:1,bCount:1,
   xpMult:1,vacRad:130,
   level:1,xp:0,xpNext:8,kills:0,
@@ -248,6 +248,7 @@ const DEFAULTS={
   meleeDmg:0,rangedDmg:0,elementalDmg:0,
   attackSpeed:0,critChance:0,engineering:0,range:0,
   armor:0,dodge:0,luck:0,harvesting:0,
+  dodgeCap:60,maxWeapons:6,
   orbLevel:0,orbDmg:30,orbRadius:88,
   novaLevel:0,novaDmg:40,
   missileLevel:0,missileDmg:70,
@@ -272,7 +273,7 @@ const STAT_LINES=[
   {key:'meleeDmg',label:'Melee Damage',icon:'Forearms',vals:[2,4,6,8],apply:v=>{S.meleeDmg+=v;}},
   {key:'rangedDmg',label:'Ranged Damage',icon:'Shoulders',vals:[1,2,3,4],apply:v=>{S.rangedDmg+=v;}},
   {key:'elementalDmg',label:'Elemental Damage',icon:'Brain',vals:[1,2,3,4],apply:v=>{S.elementalDmg+=v;}},
-  {key:'attackSpeed',label:'Attack Speed',icon:'Reflexes',vals:[5,10,15,20],apply:v=>{S.attackSpeed+=v;S.fireMs=Math.max(90,Math.floor(S.fireMs*(1-v/100)));}},
+  {key:'attackSpeed',label:'Attack Speed',icon:'Reflexes',vals:[5,10,15,20],apply:v=>{S.attackSpeed+=v;}},
   {key:'critChance',label:'Crit Chance',icon:'Fingers',vals:[3,5,7,9],apply:v=>{S.critChance+=v;}},
   {key:'engineering',label:'Engineering',icon:'Skull',vals:[2,3,4,5],apply:v=>{S.engineering+=v;}},
   {key:'range',label:'Range',icon:'Eyes',vals:[15,30,45,60],apply:v=>{S.range+=v;}},
@@ -413,9 +414,7 @@ const LEGACY_UPGRADES=[
   {icon:'🔱',r:'EPIC',name:'Split Shot +2',desc:'Two extra bullets per volley.',fn:()=>{S.bCount=Math.min(S.bCount+2,7);}},
   {icon:'💊',r:'UNCOMMON',name:'Full Heal',desc:'Restore every hit point.',fn:()=>{S.hp=S.maxHp;}},
   {icon:'❄️',r:'RARE',name:'Chill Aura',desc:'Enemies within 180px move 30% slower.',fn:()=>{S.chillAura=true;}},
-  {icon:'💀',r:'EPIC',name:'Death Explosion',desc:'Enemies explode on death dealing AoE dmg.',fn:()=>{S.deathExp=true;}},
-  {icon:'🩸',r:'RARE',name:'Vampiric I',desc:'+0.5 HP per kill.',fn:()=>{S.vampHeal=0.5;},prereq:()=>S.vampHeal===0},
-  {icon:'🩸',r:'RARE',name:'Vampiric II',desc:'Upgrade: +1 HP per kill.',fn:()=>{S.vampHeal=1.0;},prereq:()=>S.vampHeal===0.5},
+  {icon:'🩸',r:'RARE',name:'Vampiric II',desc:'Upgrade: +1 HP per kill.',fn:()=>{S.vampHeal=1.0;},prereq:()=>S.vampHeal===0},
   {icon:'🩸',r:'EPIC',name:'Vampiric III',desc:'Upgrade: +1.5 HP per kill.',fn:()=>{S.vampHeal=1.5;},prereq:()=>S.vampHeal===1.0},
   {icon:'🩸',r:'LEGENDARY',name:'Vampiric IV',desc:'Upgrade: +2 HP per kill.',fn:()=>{S.vampHeal=2.0;},prereq:()=>S.vampHeal===1.5},
   {icon:'🌀',r:'LEGENDARY',name:'Void Curvature',desc:'Bullets curve toward nearest enemy.',fn:()=>{S.curvedBullets=true;G_NOTIFY={t:'VOID CURVATURE ACTIVE',c:'#aa66ff'};}},
@@ -424,8 +423,8 @@ const LEGACY_UPGRADES=[
   {icon:'🔮',r:'EPIC',weapon:true,name:'Orbital Orb III',desc:'Three-orb spinning ring of death.',fn:()=>{S.orbLevel=3;},prereq:()=>S.orbLevel===2},
   {icon:'💫',r:'EPIC',weapon:true,name:'Nova Pulse I',desc:'Every 3.5s fire 8 bullets outward.',fn:()=>{S.novaLevel=1;},prereq:()=>S.novaLevel===0},
   {icon:'💫',r:'RARE',weapon:true,name:'Nova Pulse II',desc:'16-direction burst, fires faster.',fn:()=>{S.novaLevel=2;},prereq:()=>S.novaLevel===1},
-  {icon:'🚀',r:'EPIC',weapon:true,name:'Homing Missile I',desc:'1 tracking missile every 3s. AoE hit.',fn:()=>{S.missileLevel=1;},prereq:()=>S.missileLevel===0},
-  {icon:'🚀',r:'RARE',weapon:true,name:'Homing Missile II',desc:'2 missiles. Harder hitting.',fn:()=>{S.missileLevel=2;S.missileDmg+=30;},prereq:()=>S.missileLevel===1},
+  {icon:'🚀',r:'EPIC',weight:0.33,weapon:true,name:'Homing Missile I',desc:'1 tracking missile every 3s. AoE hit.',fn:()=>{S.missileLevel=1;},prereq:()=>S.missileLevel===0},
+  {icon:'🚀',r:'RARE',weight:0.33,weapon:true,name:'Homing Missile II',desc:'2 missiles. Harder hitting.',fn:()=>{S.missileLevel=2;S.missileDmg+=30;},prereq:()=>S.missileLevel===1},
   {icon:'⚡',r:'EPIC',weapon:true,name:'Chain Lightning I',desc:'Strike nearest enemy with chain every 2s.',fn:()=>{S.chainLevel=1;},prereq:()=>S.chainLevel===0},
   {icon:'⚡',r:'RARE',weapon:true,name:'Chain Lightning II',desc:'Chain jumps to 3 more enemies.',fn:()=>{S.chainLevel=2;S.chainDmg+=25;},prereq:()=>S.chainLevel===1},
   {icon:'💢',r:'EPIC',weapon:true,name:'Void Shotgun I',desc:'Every 2s fire a burst of 7 pellets.',fn:()=>{S.shotgunLevel=1;},prereq:()=>S.shotgunLevel===0},
@@ -972,12 +971,6 @@ class GameScene extends Phaser.Scene{
       this._vampAccum=(this._vampAccum||0)+S.vampHeal;
       if(this._vampAccum>=1){S.hp=Math.min(S.maxHp,S.hp+Math.floor(this._vampAccum));this._vampAccum-=Math.floor(this._vampAccum);this._updateHUD();}
     }
-    // Death explosion
-    if(S.deathExp&&!enemy._mini){
-      const ring=this.add.circle(ex,ey,10,0xff6600,.28).setDepth(8);
-      this.tweens.add({targets:ring,scaleX:6,scaleY:6,alpha:0,duration:380,ease:'Quad.out',onComplete:()=>ring.destroy()});
-      this.enemies.getChildren().forEach(e=>{if(!e.active)return;if(Phaser.Math.Distance.Between(ex,ey,e.x,e.y)<65){e.hp-=40;this._dmgPop(e.x,e.y-12,40,'#ff8800');if(e._isBoss)this._updateBossBar();if(e.hp<=0)this._killEnemy(e);}});
-    }
     // Splitter
     if(type.special==='splitter'&&!enemy._mini){
       for(let i=0;i<2;i++){const mx=ex+Phaser.Math.Between(-24,24),my=ey+Phaser.Math.Between(-24,24);this._activateEnemy(mx,my,ENEMY_TYPES[0],0.6,true);}
@@ -1232,7 +1225,6 @@ class GameScene extends Phaser.Scene{
     if(S.frenzyActive)  eh+='<span class="eff-badge" style="color:#ff6600;border-color:#ff660088">\uD83D\uDD25 FRENZY</span>';
     if(S.curvedBullets) eh+='<span class="eff-badge" style="color:#aa66ff;border-color:#aa66ff88">\u2736 HOMING</span>';
     if(S.vampHeal>0)    eh+='<span class="eff-badge" style="color:#ff2255;border-color:#ff225588">\uD83E\uDE78 VAMP x'+S.vampHeal+'</span>';
-    if(S.deathExp)      eh+='<span class="eff-badge" style="color:#ff8800;border-color:#ff880088">\uD83D\uDCA5 EXPLODE</span>';
     if(S.chillAura)     eh+='<span class="eff-badge" style="color:#88ddff;border-color:#88ddff88">\u2744\uFE0F CHILL</span>';
     document.getElementById('h-effects').innerHTML=eh;
 
