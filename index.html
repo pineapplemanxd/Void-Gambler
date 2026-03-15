@@ -638,9 +638,9 @@ const BOSS_TYPES=[
   {key:'boss_void',name:'VOID BEHEMOTH',w:60,h:60,glow:0xcc00ff,
    draw(g){g.fillStyle(0x220033);g.fillRect(0,0,60,60);g.fillStyle(0x550088);g.fillRect(4,4,52,52);g.fillStyle(0x9900cc);g.fillRect(8,8,44,44);g.fillStyle(0xcc44ff,.4);g.fillRect(14,14,32,32);g.fillStyle(0xff88ff,.25);g.fillRect(22,22,16,16);g.fillStyle(0x220033);g.fillRect(0,0,6,6);g.fillRect(54,0,6,6);g.fillRect(0,54,6,6);g.fillRect(54,54,6,6);g.fillStyle(0xff88ff,.3);g.fillRect(26,8,8,44);g.fillRect(8,26,44,8);},
     hpBase:600,hpLvl:180,spdMult:0.28,dmg:35,xpDrop:20,phase2Hp:0.45,music:'music/void_behemoth.mp3'},
-  {key:'boss_titan',name:'OBLIVION CITADEL',w:68,h:68,glow:0xff2a66,
-   draw(g){g.fillStyle(0x140008);g.fillRect(0,0,68,68);g.fillStyle(0x3c0018);g.fillRect(3,3,62,62);g.fillStyle(0x7c0030);g.fillRect(8,8,52,52);g.fillStyle(0xd01458,.35);g.fillRect(15,15,38,38);g.fillStyle(0xff5a88,.65);g.fillRect(12,31,44,6);g.fillRect(31,12,6,44);g.fillStyle(0xffc3d3,.28);g.fillRect(25,25,18,18);g.fillStyle(0x240010);g.fillRect(0,0,7,7);g.fillRect(61,0,7,7);g.fillRect(0,61,7,7);g.fillRect(61,61,7,7);},
-    hpBase:1750,hpLvl:360,spdMult:0.35,dmg:68,xpDrop:44,phase2Hp:0.62,special:'citadel',music:'music/oblivion_citadel.mp3'},
+  {key:'boss_storm',name:'TEMPEST MONARCH',w:66,h:66,glow:0x66bbff,
+   draw(g){g.fillStyle(0x07142b);g.fillRect(0,0,66,66);g.fillStyle(0x123c72);g.fillRect(4,4,58,58);g.fillStyle(0x1b64b8);g.fillRect(9,9,48,48);g.fillStyle(0x66bbff,.35);g.fillRect(15,15,36,36);g.fillStyle(0xd6eeff,.7);g.fillRect(31,8,4,50);g.fillRect(8,31,50,4);},
+    hpBase:1360,hpLvl:380,spdMult:0.39,dmg:66,xpDrop:40,phase2Hp:0.6,special:'storm',music:'music/tempest_monarch.mp3'},
   {key:'boss_specter',name:'VOID SPECTER',w:50,h:50,glow:0x00ffcc,
    draw(g){g.fillStyle(0x001122);g.fillRect(0,0,50,50);g.fillStyle(0x004466);g.fillRect(3,3,44,44);g.fillStyle(0x008899);g.fillRect(7,7,36,36);g.fillStyle(0x00ffdd,.5);g.fillRect(13,13,24,24);g.fillStyle(0x000000,.7);g.fillRect(20,20,10,10);g.fillStyle(0x00ffee,.8);g.fillRect(22,22,6,6);g.fillStyle(0x00ccbb,.2);g.fillRect(10,3,4,44);g.fillRect(36,3,4,44);g.fillRect(3,10,44,4);g.fillRect(3,36,44,4);},
     hpBase:500,hpLvl:150,spdMult:0.45,dmg:28,xpDrop:18,phase2Hp:0.4,special:'specter_boss',music:'music/void_specter.mp3'},
@@ -662,9 +662,9 @@ const BOSS_TYPES=[
   {key:'boss_hive',name:'HEX HIVE-MIND',w:58,h:58,glow:0xffee33,
    draw(g){g.fillStyle(0x2a2200);g.fillRect(0,0,58,58);g.fillStyle(0x625000);g.fillRect(3,3,52,52);g.fillStyle(0xa88b00);g.fillRect(8,8,42,42);g.fillStyle(0xffdd33,.4);g.fillRect(14,14,30,30);g.fillStyle(0xfff199,.6);g.fillRect(11,26,36,6);g.fillRect(26,11,6,36);},
     hpBase:1220,hpLvl:345,spdMult:0.38,dmg:61,xpDrop:36,phase2Hp:0.56,special:'hive',music:'music/hex_hive-mind.mp3'},
-  {key:'boss_storm',name:'TEMPEST MONARCH',w:66,h:66,glow:0x66bbff,
-   draw(g){g.fillStyle(0x07142b);g.fillRect(0,0,66,66);g.fillStyle(0x123c72);g.fillRect(4,4,58,58);g.fillStyle(0x1b64b8);g.fillRect(9,9,48,48);g.fillStyle(0x66bbff,.35);g.fillRect(15,15,36,36);g.fillStyle(0xd6eeff,.7);g.fillRect(31,8,4,50);g.fillRect(8,31,50,4);},
-    hpBase:1360,hpLvl:380,spdMult:0.39,dmg:66,xpDrop:40,phase2Hp:0.6,special:'storm',music:'music/tempest_monarch.mp3'},
+  {key:'boss_titan',name:'OBLIVION CITADEL',w:68,h:68,glow:0xff2a66,
+   draw(g){g.fillStyle(0x140008);g.fillRect(0,0,68,68);g.fillStyle(0x3c0018);g.fillRect(3,3,62,62);g.fillStyle(0x7c0030);g.fillRect(8,8,52,52);g.fillStyle(0xd01458,.35);g.fillRect(15,15,38,38);g.fillStyle(0xff5a88,.65);g.fillRect(12,31,44,6);g.fillRect(31,12,6,44);g.fillStyle(0xffc3d3,.28);g.fillRect(25,25,18,18);g.fillStyle(0x240010);g.fillRect(0,0,7,7);g.fillRect(61,0,7,7);g.fillRect(0,61,7,7);g.fillRect(61,61,7,7);},
+    hpBase:1750,hpLvl:360,spdMult:0.35,dmg:68,xpDrop:44,phase2Hp:0.62,special:'citadel',music:'music/oblivion_citadel.mp3'},
 ];
 
 function pickType(){
