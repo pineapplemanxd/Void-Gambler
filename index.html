@@ -192,6 +192,12 @@ body{background:var(--bg);display:flex;justify-content:center;align-items:center
           <button id="save-import" class="mini-btn">Import Save</button>
           <input id="save-import-file" type="file" accept="application/json" style="display:none" />
         </div>
+        <div style="width:100%;height:1px;background:rgba(255,255,255,.05);margin:6px 0 2px"></div>
+        <div style="font-size:9px;color:#5a3a85;letter-spacing:.14em;text-transform:uppercase;align-self:center">Boss Training</div>
+        <select id="train-boss-select" class="char-select"></select>
+        <select id="train-weapons" class="char-select" multiple size="7"></select>
+        <div style="font-size:9px;color:#7e68a8">Select one boss and one or more weapons to train.</div>
+        <button id="start-training" class="mini-btn">Start Training</button>
       </div>
     </div>
     <button class="void-btn" id="start-btn">&#9654; &nbsp; ENTER THE VOID</button>
@@ -302,7 +308,7 @@ const GUNS=[
   {id:'medical_gun',name:'Medical Gun',rarity:'UNCOMMON',tags:'Medical, Gun',fireMs:520,pierce:[0,0,0,0],healOnHit:.4,desc:'Each hit restores small HP.'},
   {id:'minigun',name:'Minigun',rarity:'UNCOMMON',tags:'Heavy, Gun',fireMs:105,pierce:[1,1,2,2],falloff:.5,desc:'Sustained rapid fire with half-damage pierce.'},
   {id:'nuclear_launcher',name:'Nuclear Launcher',rarity:'LEGENDARY',tags:'Heavy, Explosive',fireMs:1400,pierce:[0,0,0,0],explosive:true,bigExplosion:true,desc:'Massive blast projectiles.'},
-  {id:'obliterator',name:'Obliterator',rarity:'LEGENDARY',tags:'Gun, Heavy',fireMs:980,pierce:[99,99,99,99],falloff:1,desc:'Pierces through everything with full damage.'},
+  {id:'obliterator',name:'Obliterator',rarity:'LEGENDARY',tags:'Gun, Heavy',fireMs:320,pierce:[99,99,99,99],falloff:1,fixedDamage:120,noBounce:true,desc:'Ultra-dense anti-boss rounds with full damage pierce.'},
   {id:'particle_acc',name:'Particle Accelerator',rarity:'LEGENDARY',tags:'Heavy, Elemental',fireMs:360,pierce:[99,99,99,99],falloff:.9,burn:true,elemental:true,engSlow:true,noBounce:true,desc:'Burning beam with engineering-based slow.'},
   {id:'pistol',name:'Pistol',rarity:'COMMON',tags:'Gun',fireMs:430,pierce:[1,1,1,1],falloff:.5,desc:'Reliable sidearm with 50% second hit.'},
   {id:'potato',name:'Potato Thrower',rarity:'COMMON',tags:'Support',fireMs:500,pierce:[0,0,0,0],vacBoost:24,desc:'Supportive thrower that widens pickup vacuum.'},
@@ -321,6 +327,7 @@ const SAVE_KEY='voidGamblerSaveV2';
 const META_DEFAULT={totalKills:0,totalMaterials:0,totalDeaths:0,bestLevel:1,bestUniqueWeapons:1,selectedCharacter:'well_rounded',unlockedChars:{}};
 let META=loadMeta();
 let SELECTED_CHARACTER=META.selectedCharacter||'well_rounded';
+let TRAINING_CFG={enabled:false,bossKey:null,weapons:[]};
 
 function loadMeta(){
   try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return {...META_DEFAULT};return {...META_DEFAULT,...JSON.parse(raw)};}catch(e){return {...META_DEFAULT};}
@@ -633,6 +640,27 @@ const BOSS_TYPES=[
   {key:'boss_specter',name:'VOID SPECTER',w:50,h:50,glow:0x00ffcc,
    draw(g){g.fillStyle(0x001122);g.fillRect(0,0,50,50);g.fillStyle(0x004466);g.fillRect(3,3,44,44);g.fillStyle(0x008899);g.fillRect(7,7,36,36);g.fillStyle(0x00ffdd,.5);g.fillRect(13,13,24,24);g.fillStyle(0x000000,.7);g.fillRect(20,20,10,10);g.fillStyle(0x00ffee,.8);g.fillRect(22,22,6,6);g.fillStyle(0x00ccbb,.2);g.fillRect(10,3,4,44);g.fillRect(36,3,4,44);g.fillRect(3,10,44,4);g.fillRect(3,36,44,4);},
    hpBase:500,hpLvl:150,spdMult:0.45,dmg:28,xpDrop:18,phase2Hp:0.4,special:'specter_boss'},
+  {key:'boss_warden',name:'GRAVITY WARDEN',w:62,h:62,glow:0x66aaff,
+   draw(g){g.fillStyle(0x061428);g.fillRect(0,0,62,62);g.fillStyle(0x0f315a);g.fillRect(4,4,54,54);g.fillStyle(0x1e5ea2);g.fillRect(9,9,44,44);g.fillStyle(0x6cb7ff,.35);g.fillRect(16,16,30,30);g.fillStyle(0x9ad0ff,.7);g.fillRect(28,8,6,46);g.fillRect(8,28,46,6);},
+   hpBase:760,hpLvl:215,spdMult:0.4,dmg:41,xpDrop:24,phase2Hp:0.5,special:'warden'},
+  {key:'boss_seraph',name:'RIFT SERAPH',w:56,h:56,glow:0xffd166,
+   draw(g){g.fillStyle(0x2a1a00);g.fillRect(0,0,56,56);g.fillStyle(0x5b3a00);g.fillRect(3,3,50,50);g.fillStyle(0xa16a00);g.fillRect(8,8,40,40);g.fillStyle(0xffcc66,.4);g.fillRect(14,14,28,28);g.fillStyle(0xffeeaa,.75);g.fillRect(24,6,8,44);g.fillRect(6,24,44,8);},
+   hpBase:820,hpLvl:240,spdMult:0.37,dmg:46,xpDrop:26,phase2Hp:0.55,special:'seraph'},
+  {key:'boss_forge',name:'EMBER FORGE',w:64,h:64,glow:0xff5500,
+   draw(g){g.fillStyle(0x290a00);g.fillRect(0,0,64,64);g.fillStyle(0x5c1900);g.fillRect(4,4,56,56);g.fillStyle(0xa62c00);g.fillRect(9,9,46,46);g.fillStyle(0xff6622,.36);g.fillRect(15,15,34,34);g.fillStyle(0xffb066,.6);g.fillRect(12,30,40,4);g.fillRect(30,12,4,40);},
+   hpBase:960,hpLvl:265,spdMult:0.32,dmg:52,xpDrop:29,phase2Hp:0.58,special:'forge'},
+  {key:'boss_leviathan',name:'ABYSS LEVIATHAN',w:72,h:52,glow:0x33ddff,
+   draw(g){g.fillStyle(0x001d29);g.fillRect(0,0,72,52);g.fillStyle(0x00465f);g.fillRect(4,4,64,44);g.fillStyle(0x00789c);g.fillRect(10,9,52,34);g.fillStyle(0x44d3ff,.35);g.fillRect(16,14,40,24);g.fillStyle(0xb4f1ff,.5);g.fillRect(52,18,12,16);},
+   hpBase:1040,hpLvl:290,spdMult:0.34,dmg:55,xpDrop:31,phase2Hp:0.5,special:'leviathan'},
+  {key:'boss_clock',name:'CHRONO TYRANT',w:60,h:60,glow:0x99ff66,
+   draw(g){g.fillStyle(0x102800);g.fillRect(0,0,60,60);g.fillStyle(0x2f5710);g.fillRect(4,4,52,52);g.fillStyle(0x5f9925);g.fillRect(9,9,42,42);g.fillStyle(0xb3ff66,.35);g.fillRect(15,15,30,30);g.fillStyle(0xe2ffb0,.7);g.fillRect(28,10,4,22);g.fillRect(28,28,16,4);},
+   hpBase:1120,hpLvl:320,spdMult:0.36,dmg:58,xpDrop:34,phase2Hp:0.52,special:'clock'},
+  {key:'boss_hive',name:'HEX HIVE-MIND',w:58,h:58,glow:0xffee33,
+   draw(g){g.fillStyle(0x2a2200);g.fillRect(0,0,58,58);g.fillStyle(0x625000);g.fillRect(3,3,52,52);g.fillStyle(0xa88b00);g.fillRect(8,8,42,42);g.fillStyle(0xffdd33,.4);g.fillRect(14,14,30,30);g.fillStyle(0xfff199,.6);g.fillRect(11,26,36,6);g.fillRect(26,11,6,36);},
+   hpBase:1220,hpLvl:345,spdMult:0.38,dmg:61,xpDrop:36,phase2Hp:0.56,special:'hive'},
+  {key:'boss_storm',name:'TEMPEST MONARCH',w:66,h:66,glow:0x66bbff,
+   draw(g){g.fillStyle(0x07142b);g.fillRect(0,0,66,66);g.fillStyle(0x123c72);g.fillRect(4,4,58,58);g.fillStyle(0x1b64b8);g.fillRect(9,9,48,48);g.fillStyle(0x66bbff,.35);g.fillRect(15,15,36,36);g.fillStyle(0xd6eeff,.7);g.fillRect(31,8,4,50);g.fillRect(8,31,50,4);},
+   hpBase:1360,hpLvl:380,spdMult:0.39,dmg:66,xpDrop:40,phase2Hp:0.6,special:'storm'},
 ];
 
 function pickType(){
@@ -669,7 +697,11 @@ class MenuScene extends Phaser.Scene{
     document.getElementById('pause-btn').style.display='none';
     const sel=document.getElementById('char-select');
     const info=document.getElementById('char-info');
+    const trainBoss=document.getElementById('train-boss-select');
+    const trainWeapons=document.getElementById('train-weapons');
     sel.innerHTML='';
+    trainBoss.innerHTML='';
+    trainWeapons.innerHTML='';
     CHARACTERS.forEach(ch=>{
       const unlocked=ch.unlock();
       if(unlocked)META.unlockedChars[ch.id]=true;
@@ -679,6 +711,8 @@ class MenuScene extends Phaser.Scene{
       o.disabled=!unlocked;
       sel.appendChild(o);
     });
+    BOSS_TYPES.forEach(b=>{const o=document.createElement('option');o.value=b.key;o.textContent=b.name;trainBoss.appendChild(o);});
+    GUNS.forEach(g=>{const o=document.createElement('option');o.value=g.id;o.textContent=g.name+' ['+g.rarity+']';if(g.id==='pistol')o.selected=true;trainWeapons.appendChild(o);});
     if(!META.unlockedChars[SELECTED_CHARACTER])SELECTED_CHARACTER='well_rounded';
     sel.value=SELECTED_CHARACTER;
     const renderInfo=()=>{
@@ -691,7 +725,13 @@ class MenuScene extends Phaser.Scene{
     document.getElementById('save-import').onclick=()=>document.getElementById('save-import-file').click();
     document.getElementById('save-import-file').onchange=e=>{const f=e.target.files&&e.target.files[0];if(!f)return;importSaveFile(f,ok=>{if(ok)this.scene.restart();});};
     saveMeta();
-    document.getElementById('start-btn').onclick=()=>{document.getElementById('menu-ov').classList.remove('visible');this.scene.start('GameScene');};
+    document.getElementById('start-btn').onclick=()=>{TRAINING_CFG={enabled:false,bossKey:null,weapons:[]};document.getElementById('menu-ov').classList.remove('visible');this.scene.start('GameScene');};
+    document.getElementById('start-training').onclick=()=>{
+      const picked=Array.from(trainWeapons.selectedOptions||[]).map(o=>o.value).filter(Boolean);
+      TRAINING_CFG={enabled:true,bossKey:trainBoss.value||BOSS_TYPES[0].key,weapons:picked.length?picked:['pistol']};
+      document.getElementById('menu-ov').classList.remove('visible');
+      this.scene.start('GameScene');
+    };
   }
   update(time,delta){
     const dt=delta/1000;
@@ -769,8 +809,20 @@ class GameScene extends Phaser.Scene{
     this.novaTimer=null;this.missileTimer=null;this.chainTimer=null;this.shotgunTimer=null;this.spawnTimer=null;
     this.gunTimers={};this.gunShotCounter={};
     this.activeBoss=null;
+    this._trainingMode=!!TRAINING_CFG.enabled;
+    this._trainingBossKey=TRAINING_CFG.bossKey||BOSS_TYPES[0].key;
     this.gunMap=Object.fromEntries(GUNS.map(g=>[g.id,g]));
     this._applyCharacter();
+    if(this._trainingMode){
+      const pick=[...new Set((TRAINING_CFG.weapons||[]).filter(id=>this.gunMap[id]))];
+      if(!pick.length)pick.push('pistol');
+      S.maxWeapons=Math.max(S.maxWeapons,pick.length);
+      S.loadout=pick.slice(0,24);
+      S.currentGun=S.loadout[0];
+      S.gunLevels={};
+      S.loadout.forEach(id=>{S.gunLevels[id]=4;});
+      S.level=10;
+    }
 
     this.physics.world.setBounds(0,0,WW,WH);
     this.cameras.main.setBounds(0,0,WW,WH);
@@ -781,7 +833,7 @@ class GameScene extends Phaser.Scene{
     this.bossShots=pool('bullet_arc');
     this.enemies=pool('e_grunt');this.gems=pool('gem');this.drops=pool('drop_magnet');
 
-    this.player=this.physics.add.sprite(WW/2,WH/2,'player').setCollideWorldBounds(true).setDepth(10);
+    this.player=this.physics.add.sprite(WW/2,WH/2,'player').setCollideWorldBounds(true).setDepth(10).setScale(0.82);
     try{if(this.player.preFX)this._pGlow=this.player.preFX.addGlow(0x2255ff,12,0,false,.08,16);}catch(e){}
 
     this.shieldCircle=this.add.circle(0,0,26,0x4488ff,0).setDepth(11).setStrokeStyle(2,0x88aaff,.9).setVisible(false);
@@ -794,14 +846,19 @@ class GameScene extends Phaser.Scene{
     this.wasd=this.input.keyboard.addKeys({up:Phaser.Input.Keyboard.KeyCodes.W,down:Phaser.Input.Keyboard.KeyCodes.S,left:Phaser.Input.Keyboard.KeyCodes.A,right:Phaser.Input.Keyboard.KeyCodes.D});
     this.escKey=this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     this.pKey=this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
+    this.shiftKey=this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
 
     this.physics.add.overlap(this.bullets,this.enemies,this._onBulletHit,null,this);
     this.physics.add.overlap(this.pellets,this.enemies,this._onBulletHit,null,this);
     this.physics.add.overlap(this.missiles,this.enemies,this._onMissileHit,null,this);
     this.physics.add.overlap(this.player,this.bossShots,(p,s)=>{if(!s.active)return;this._retireBossShot(s);this._playerTakeDamage(s.dmg||14);},null,this);
 
-    this.spawnTimer=this._mkTimer(spawnInterval(),this._spawnWave);
+    if(!this._trainingMode)this.spawnTimer=this._mkTimer(spawnInterval(),this._spawnWave);
     this._syncGunTimers();
+    if(this._trainingMode){
+      this._notify('BOSS TRAINING: '+((BOSS_TYPES.find(b=>b.key===this._trainingBossKey)||{}).name||'BOSS'),'#ff88aa');
+      this.time.delayedCall(450,()=>this._spawnBoss(this._trainingBossKey));
+    }
 
     const pb=document.getElementById('pause-btn');
     pb.style.display='block';
@@ -888,7 +945,7 @@ class GameScene extends Phaser.Scene{
     if(!b)return;
     const sty={
       pistol:{tex:'bullet',tint:0xe8e8ff,sc:1},smg:{tex:'bullet',tint:0xbbe8ff,sc:.85},revolver:{tex:'bullet',tint:0xffddaa,sc:1.05},
-      minigun:{tex:'bullet',tint:0xffaa66,sc:.8},laser_gun:{tex:'bullet_laser',tint:0x66e0ff,sc:1.05},gatling_laser:{tex:'bullet_laser',tint:0xff6688,sc:1.08},
+      minigun:{tex:'bullet',tint:0xffaa66,sc:.8},laser_gun:{tex:'bullet_laser',tint:0x66e0ff,sc:1.05},gatling_laser:{tex:'bullet_laser',tint:0xff6688,sc:1.08},obliterator:{tex:'bullet_laser',tint:0xffffff,sc:1.28},
       particle_acc:{tex:'bullet_laser',tint:0xaaff66,sc:1.15},fireball:{tex:'bullet_fire',tint:0xff6633,sc:1.2},wand:{tex:'bullet_fire',tint:0xff44aa,sc:1},
       flamethrower:{tex:'bullet_fire',tint:0xffaa00,sc:.7},icicle:{tex:'bullet_ice',tint:0x88e6ff,sc:1},crossbow:{tex:'bullet_ice',tint:0xddddff,sc:.95},
       shuriken:{tex:'bullet_shuriken',tint:0xccddee,sc:1},flute:{tex:'bullet_arc',tint:0xdd88ff,sc:1},ghost_scepter:{tex:'bullet_arc',tint:0xaa66ff,sc:1.15},
@@ -946,7 +1003,7 @@ class GameScene extends Phaser.Scene{
     const forceCrit=forcedCritEvery>0&&shots%forcedCritEvery===0;
     for(let i=0;i<pelletCount;i++){
       const angle=base+(pelletCount===1?0:(i-(pelletCount-1)/2)*spread);
-      this._spawnGunBullet(px,py,angle,g,{isPellet:g.pellets>1,dmgBonus:forceCrit?S.dmg:0,speedMul:g.pellets?0.72:1});
+      this._spawnGunBullet(px,py,angle,g,{isPellet:g.pellets>1,dmgBonus:forceCrit?S.dmg:0,speedMul:g.id==='obliterator'?1.45:(g.pellets?0.72:1)});
     }
     if(g.id==='potato')S.vacRad=Math.min(520,S.vacRad+(g.vacBoost||0));
     this._applyGunCooldown(g,gunId);
@@ -983,18 +1040,20 @@ class GameScene extends Phaser.Scene{
     if(!e)return;
     e.setPosition(x,y).setActive(true).setVisible(true).setDepth(5).setScale(scale||1);
     e.setTexture(type.key);e.body.enable=true;e.body.reset(x,y);e.clearTint();
+    if(e.body&&type.w&&type.h)e.body.setSize(type.w,type.h,true);
     e.etype=type;e._mini=isMini;e._phase=Math.random()*Math.PI*2;e.lastShot=0;e._isBoss=false;
     e.hp=((type.baseHp+S.level*type.hpLvl)*(isMini?.35:1))|0;
     e.maxHp=e.hp;
     try{if(e.preFX){e.preFX.clear();e.preFX.addGlow(type.glowColor,type.key==='e_brute'?12:5,0,false,.08,10);}}catch(err){}
   }
 
-  _spawnBoss(){
+  _spawnBoss(forcedBossKey=null){
     if(this.activeBoss&&this.activeBoss.active)return;
     const bIdx=(Math.floor(S.level/5)-1)%BOSS_TYPES.length;
-    const bt=BOSS_TYPES[bIdx];
+    const bt=(forcedBossKey&&BOSS_TYPES.find(b=>b.key===forcedBossKey))||BOSS_TYPES[bIdx];
+    if(!bt)return;
     const cam=this.cameras.main.worldView;
-    const x=cam.right+110,y=(cam.top+cam.bottom)/2;
+    const x=Phaser.Math.Clamp(this.player.x+Phaser.Math.Between(170,240),cam.left+88,cam.right-88),y=Phaser.Math.Clamp(this.player.y+Phaser.Math.Between(-90,90),cam.top+88,cam.bottom-88);
     // Boss phase: remove all non-boss enemies.
     this.enemies.getChildren().forEach(e=>{
       if(!e.active||e._isBoss)return;
@@ -1005,6 +1064,7 @@ class GameScene extends Phaser.Scene{
     if(!b)return;
     b.setPosition(x,y).setActive(true).setVisible(true).setDepth(6).setScale(1);
     b.setTexture(bt.key);b.body.enable=true;b.body.reset(x,y);b.clearTint();
+    if(b.body&&bt.w&&bt.h)b.body.setSize(bt.w,bt.h,true);
     b.etype={key:bt.key,label:bt.name,w:bt.w,h:bt.h,baseHp:bt.hpBase,hpLvl:bt.hpLvl,spdMult:bt.spdMult,dmg:bt.dmg,xpDrop:bt.xpDrop,glowColor:bt.glow,special:'boss'};
     b._mini=false;b._isBoss=true;b._bossType=bt;b._phase=0;b.lastShot=0;b._phase2=false;
     b.invulnerable=false;b.invulnUntil=0;
@@ -1079,6 +1139,59 @@ class GameScene extends Phaser.Scene{
           const spd=(i%2?290:240)+(phase2?40:0);
           this._spawnBossShot(b.x,b.y,a,spd,Math.floor(bossDmg*0.34),0.88,0x33ffdd);
         }
+      }else if(key==='boss_warden'){
+        const spin=((this._bossSpin||0)+(phase2?.34:.2));this._bossSpin=spin;
+        const dirs=[0,Math.PI/2,Math.PI,Math.PI*1.5];
+        dirs.forEach((d,idx)=>{
+          const a=d+spin;
+          const sp=(phase2?360:300)+(idx%2?20:0);
+          this._spawnBossShot(b.x,b.y,a,sp,Math.floor(bossDmg*0.36),1,0x7ec1ff);
+          this._spawnBossShot(b.x,b.y,a+Math.PI/10,sp-30,Math.floor(bossDmg*0.3),0.9,0x9ed4ff);
+          this._spawnBossShot(b.x,b.y,a-Math.PI/10,sp-30,Math.floor(bossDmg*0.3),0.9,0x9ed4ff);
+        });
+      }else if(key==='boss_seraph'){
+        const petals=phase2?14:9;
+        for(let i=0;i<petals;i++){
+          const a=aim+((i-(petals-1)/2)*(phase2?0.22:0.3));
+          this._spawnBossShot(b.x,b.y,a,phase2?380:330,Math.floor(bossDmg*0.33),0.82,0xffd88a);
+        }
+      }else if(key==='boss_forge'){
+        const bursts=phase2?8:5;
+        for(let i=0;i<bursts;i++){
+          const a=(Math.PI*2*i/bursts)+(this._bossSpin||0);
+          this._spawnBossShot(b.x,b.y,a,phase2?220:180,Math.floor(bossDmg*0.5),1.25,0xff7722);
+        }
+      }else if(key==='boss_leviathan'){
+        const lanes=phase2?9:6;
+        for(let i=0;i<lanes;i++){
+          const y=this.player.y+(i-(lanes-1)/2)*(phase2?34:44);
+          const left=(i%2===0);
+          const sx=left?this.cameras.main.worldView.left-24:this.cameras.main.worldView.right+24;
+          const a=left?0:Math.PI;
+          this._spawnBossShot(sx,y,a,phase2?380:320,Math.floor(bossDmg*0.28),0.95,0x66ddff);
+        }
+      }else if(key==='boss_clock'){
+        const ticks=phase2?18:12;
+        const step=(Math.PI*2)/ticks;
+        const offset=((this._clockTick||0)%2)?step/2:0;this._clockTick=(this._clockTick||0)+1;
+        for(let i=0;i<ticks;i++){
+          const a=offset+i*step;
+          this._spawnBossShot(b.x,b.y,a,phase2?350:300,Math.floor(bossDmg*0.3),0.8,0xc8ff88);
+        }
+      }else if(key==='boss_hive'){
+        const hex=phase2?12:6;
+        for(let i=0;i<hex;i++){
+          const a=(i/hex)*Math.PI*2;
+          this._spawnBossShot(b.x,b.y,a,phase2?300:250,Math.floor(bossDmg*0.32),0.84,0xffe066);
+        }
+      }else if(key==='boss_storm'){
+        const spin=((this._bossSpin||0)+(phase2?.62:.44));this._bossSpin=spin;
+        const arcs=phase2?20:14;
+        for(let i=0;i<arcs;i++){
+          const a=spin+(i/arcs)*Math.PI*2;
+          const spd=phase2?420:340;
+          this._spawnBossShot(b.x,b.y,a,spd,Math.floor(bossDmg*0.27),0.78,0x8ac4ff);
+        }
       }else{
         const ringCount=phase2?16:10;
         const spin=((this._bossSpin||0)+(phase2?.42:.22));this._bossSpin=spin;
@@ -1118,6 +1231,63 @@ class GameScene extends Phaser.Scene{
         for(let i=0;i<rain;i++){
           const sx=this.player.x+Phaser.Math.Between(-220,220),sy=this.cameras.main.worldView.top-26;
           this._spawnBossShot(sx,sy,Math.PI/2,phase2?340:290,Math.floor(bossDmg*0.3),0.82,0x66ffee);
+        }
+      }else if(key==='boss_warden'){
+        const cv=this.cameras.main.worldView;
+        const cols=phase2?8:5;
+        for(let i=0;i<cols;i++){
+          const x=cv.left+50+(i*(cv.width-100)/Math.max(1,cols-1));
+          this._spawnBossShot(x,cv.top-18,Math.PI/2,phase2?380:320,Math.floor(bossDmg*0.26),0.88,0x8bc6ff);
+          this._spawnBossShot(x,cv.bottom+18,-Math.PI/2,phase2?380:320,Math.floor(bossDmg*0.26),0.88,0x8bc6ff);
+        }
+      }else if(key==='boss_seraph'){
+        const flanks=phase2?10:6;
+        for(let i=0;i<flanks;i++){
+          const y=this.cameras.main.worldView.top+80+(i*(this.cameras.main.worldView.height-160)/Math.max(1,flanks-1));
+          this._spawnBossShot(this.cameras.main.worldView.left-22,y,0,phase2?420:350,Math.floor(bossDmg*0.28),0.8,0xffefb3);
+          this._spawnBossShot(this.cameras.main.worldView.right+22,y,Math.PI,phase2?420:350,Math.floor(bossDmg*0.28),0.8,0xffefb3);
+        }
+      }else if(key==='boss_forge'){
+        const pools=phase2?16:10;
+        for(let i=0;i<pools;i++){
+          const a=(i/pools)*Math.PI*2;
+          const sx=b.x+Math.cos(a)*Phaser.Math.Between(20,90),sy=b.y+Math.sin(a)*Phaser.Math.Between(20,90);
+          const toP=Phaser.Math.Angle.Between(sx,sy,this.player.x,this.player.y);
+          this._spawnBossShot(sx,sy,toP,phase2?300:240,Math.floor(bossDmg*0.34),1.08,0xff9944);
+        }
+      }else if(key==='boss_leviathan'){
+        const waves=phase2?3:2;
+        for(let w=0;w<waves;w++){
+          this.time.delayedCall(w*(phase2?220:340),()=>{
+            const lanes=phase2?12:8;
+            for(let i=0;i<lanes;i++){
+              const y=this.cameras.main.worldView.top+30+(i*(this.cameras.main.worldView.height-60)/Math.max(1,lanes-1));
+              const left=(w+i)%2===0;
+              this._spawnBossShot(left?this.cameras.main.worldView.left-20:this.cameras.main.worldView.right+20,y,left?0:Math.PI,phase2?420:360,Math.floor(bossDmg*0.24),0.8,0x90edff);
+            }
+          });
+        }
+      }else if(key==='boss_clock'){
+        const aimed=phase2?9:5;
+        for(let i=0;i<aimed;i++){
+          this.time.delayedCall(i*(phase2?110:170),()=>{
+            const a=Phaser.Math.Angle.Between(b.x,b.y,this.player.x,this.player.y);
+            this._spawnBossShot(b.x,b.y,a,phase2?430:360,Math.floor(bossDmg*0.37),0.92,0xbaff77);
+          });
+        }
+      }else if(key==='boss_hive'){
+        const spawnCount=phase2?6:4;
+        for(let i=0;i<spawnCount;i++)this._activateEnemy(b.x+Phaser.Math.Between(-70,70),b.y+Phaser.Math.Between(-70,70),ENEMY_TYPES[4],0.8,true);
+        const comb=phase2?18:12;
+        for(let i=0;i<comb;i++){
+          const a=(i/comb)*Math.PI*2;
+          this._spawnBossShot(b.x,b.y,a,phase2?340:280,Math.floor(bossDmg*0.25),0.76,0xfff199);
+        }
+      }else if(key==='boss_storm'){
+        const rain=phase2?24:14;
+        for(let i=0;i<rain;i++){
+          const sx=this.cameras.main.worldView.left+Phaser.Math.Between(10,Math.floor(this.cameras.main.worldView.width-10));
+          this._spawnBossShot(sx,this.cameras.main.worldView.top-24,Math.PI/2,phase2?470:390,Math.floor(bossDmg*0.22),0.74,0xb7dfff);
         }
       }else{
         const fan=phase2?11:7;
@@ -1281,9 +1451,12 @@ class GameScene extends Phaser.Scene{
       document.getElementById('boss-bar-wrap').style.display='none';
       this.activeBoss=null;
       this.bossShots.getChildren().forEach(s=>this._retireBossShot(s));
-      const crate=this.drops.getFirstDead(true,ex,ey,'drop_legend');
-      if(crate){crate.setTexture('drop_legend').setPosition(ex,ey).setActive(true).setVisible(true).setDepth(6);crate.body.enable=true;crate.body.reset(ex,ey);crate.dropType='drop_legend';}
+      if(!this._trainingMode){
+        const crate=this.drops.getFirstDead(true,ex,ey,'drop_legend');
+        if(crate){crate.setTexture('drop_legend').setPosition(ex,ey).setActive(true).setVisible(true).setDepth(6);crate.body.enable=true;crate.body.reset(ex,ey);crate.dropType='drop_legend';}
+      }
       SFX.bossdie();
+      if(this._trainingMode)this.time.delayedCall(1000,()=>{if(this.scene&&this.scene.isActive('GameScene'))this._spawnBoss(this._trainingBossKey);});
     }
     enemy.setActive(false).setVisible(false);enemy.body.enable=false;enemy.body.setVelocity(0,0);enemy.setPosition(-9999,-9999);
     try{if(enemy.preFX)enemy.preFX.clear();}catch(e){}
@@ -1298,7 +1471,7 @@ class GameScene extends Phaser.Scene{
     }
     // XP drops
     const isBoss=enemy._isBoss,drops=(type.xpDrop||1);
-    if(isBoss){for(let i=0;i<5;i++)this._dropGem(ex+Phaser.Math.Between(-40,40),ey+Phaser.Math.Between(-40,40),'gem_big',drops/5*S.xpMult,0xff9900);}
+    if(isBoss&&!this._trainingMode){for(let i=0;i<5;i++)this._dropGem(ex+Phaser.Math.Between(-40,40),ey+Phaser.Math.Between(-40,40),'gem_big',drops/5*S.xpMult,0xff9900);}
     else if(type.key==='e_brute')this._dropGem(ex,ey,'gem_big',drops*S.xpMult,0xff9900);
     else{for(let i=0;i<drops;i++)this._dropGem(ex+Phaser.Math.Between(-14,14),ey+Phaser.Math.Between(-14,14),'gem',S.xpMult,0xffcc00);}
     // Item drops — nerfed, floor at 0.8% late game
@@ -1677,10 +1850,11 @@ class GameScene extends Phaser.Scene{
     const dt=delta/1000;
     this.bg.tilePositionX=this.cameras.main.scrollX;this.bg.tilePositionY=this.cameras.main.scrollY;
     const{cursors,wasd}=this;let vx=0,vy=0;
-    if(cursors.left.isDown  ||wasd.left.isDown)  vx=-S.spd;
-    if(cursors.right.isDown ||wasd.right.isDown)  vx= S.spd;
-    if(cursors.up.isDown    ||wasd.up.isDown)    vy=-S.spd;
-    if(cursors.down.isDown  ||wasd.down.isDown)  vy= S.spd;
+    const moveSpd=(this.shiftKey&&this.shiftKey.isDown)?(S.spd*0.46):S.spd;
+    if(cursors.left.isDown  ||wasd.left.isDown)  vx=-moveSpd;
+    if(cursors.right.isDown ||wasd.right.isDown)  vx= moveSpd;
+    if(cursors.up.isDown    ||wasd.up.isDown)    vy=-moveSpd;
+    if(cursors.down.isDown  ||wasd.down.isDown)  vy= moveSpd;
     if(vx&&vy){vx*=.7071;vy*=.7071;}
     this.player.setVelocity(vx,vy);
     const px=this.player.x,py=this.player.y;
