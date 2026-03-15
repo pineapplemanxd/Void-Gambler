@@ -197,11 +197,20 @@ body{background:var(--bg);display:flex;justify-content:center;align-items:center
           <input id="music-vol" type="range" min="0" max="100" step="1" value="55" style="width:100%" />
           <label style="font-size:9px;color:#8f73be;display:flex;justify-content:space-between;gap:8px">SFX Volume <span id="sfx-vol-val">80%</span></label>
           <input id="sfx-vol" type="range" min="0" max="100" step="1" value="80" style="width:100%" />
+          <label style="font-size:10px;color:#ff8a8a;display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #3a1b1b;padding-top:6px;margin-top:2px">
+            <span>Hard Mode</span>
+            <input id="hard-mode-toggle" type="checkbox" style="transform:scale(1.15)" />
+          </label>
+          <div style="font-size:9px;color:#c07a7a">Huge difficulty increase: tougher enemies, faster waves, lower XP gain.</div>
         </div>
         <div style="width:100%;height:1px;background:rgba(255,255,255,.05);margin:6px 0 2px"></div>
         <div style="font-size:9px;color:#5a3a85;letter-spacing:.14em;text-transform:uppercase;align-self:center">Boss Training</div>
         <select id="train-boss-select" class="char-select"></select>
         <select id="train-weapons" class="char-select" multiple size="7"></select>
+        <label style="font-size:10px;color:#ff9c9c;display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #3a1b1b;padding-top:6px;margin-top:2px">
+          <span>Hard Mode Training Boss</span>
+          <input id="train-hard-toggle" type="checkbox" style="transform:scale(1.15)" />
+        </label>
         <div style="font-size:9px;color:#7e68a8">Select one boss and one or more weapons to train.</div>
         <button id="start-training" class="mini-btn">Start Training</button>
       </div>
@@ -255,6 +264,7 @@ const SFX=(()=>{
 
 const GW=900,GH=580,WW=4000,WH=4000;
 const BOSS_HP_MULT=3.4;
+const HARD_MODE_TUNING={enemyHp:1.85,enemySpd:1.28,spawnCount:1.65,spawnInterval:0.72,incomingDamage:1.55,xpGain:0.75,bossHardMult:3,bossShotSpeed:1.35};
 let G_NOTIFY=null;
 
 const DEFAULTS={
@@ -336,16 +346,23 @@ const GUNS=[
 ];
 
 const SAVE_KEY='voidGamblerSaveV2';
-const META_DEFAULT={totalKills:0,totalMaterials:0,totalDeaths:0,bestLevel:1,bestUniqueWeapons:1,selectedCharacter:'well_rounded',unlockedChars:{},audio:{music:0.55,sfx:0.8}};
+const META_DEFAULT={totalKills:0,totalMaterials:0,totalDeaths:0,bestLevel:1,bestUniqueWeapons:1,selectedCharacter:'well_rounded',unlockedChars:{},audio:{music:0.55,sfx:0.8},settings:{hardMode:false,trainingHardMode:false}};
 let META=loadMeta();
 let SELECTED_CHARACTER=META.selectedCharacter||'well_rounded';
-let TRAINING_CFG={enabled:false,bossKey:null,weapons:[]};
+let TRAINING_CFG={enabled:false,bossKey:null,weapons:[],hardMode:false};
 if(!META.audio)META.audio={music:0.55,sfx:0.8};
+if(!META.settings)META.settings={hardMode:false,trainingHardMode:false};
 AUDIO_SETTINGS.music=Math.min(1,Math.max(0,Number(META.audio.music)||0.55));
 AUDIO_SETTINGS.sfx=Math.min(1,Math.max(0,Number(META.audio.sfx)||0.8));
+let HARD_MODE=!!META.settings.hardMode;
 
 function loadMeta(){
-  try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return {...META_DEFAULT};return {...META_DEFAULT,...JSON.parse(raw)};}catch(e){return {...META_DEFAULT};}
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(!raw)return {...META_DEFAULT};
+    const parsed=JSON.parse(raw);
+    return {...META_DEFAULT,...parsed,audio:{...META_DEFAULT.audio,...(parsed.audio||{})},settings:{...META_DEFAULT.settings,...(parsed.settings||{})}};
+  }catch(e){return {...META_DEFAULT};}
 }
 function saveMeta(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(META));}catch(e){}}
 function exportSaveFile(){
@@ -355,7 +372,7 @@ function exportSaveFile(){
 }
 function importSaveFile(file,cb){
   const r=new FileReader();
-  r.onload=()=>{try{const j=JSON.parse(String(r.result||'{}'));META={...META_DEFAULT,...j};SELECTED_CHARACTER=META.selectedCharacter||'well_rounded';saveMeta();if(cb)cb(true);}catch(e){if(cb)cb(false);}};
+  r.onload=()=>{try{const j=JSON.parse(String(r.result||'{}'));META={...META_DEFAULT,...j,audio:{...META_DEFAULT.audio,...(j.audio||{})},settings:{...META_DEFAULT.settings,...(j.settings||{})}};SELECTED_CHARACTER=META.selectedCharacter||'well_rounded';HARD_MODE=!!(META.settings&&META.settings.hardMode);saveMeta();if(cb)cb(true);}catch(e){if(cb)cb(false);}};
   r.readAsText(file);
 }
 
@@ -592,15 +609,12 @@ function buildItemUpgrades(){
   });
 }
 
-const LEGACY_UPGRADES=[
+const LEGACY_UPGRADES=[ //broken ash
   {icon:'✨',r:'EPIC',name:'Double XP',desc:'Every gem grants 2x experience.',fn:()=>{S.xpMult*=2;}},
   {icon:'🌀',r:'UNCOMMON',name:'Wider Vacuum',desc:'Attract gems from further away.',fn:()=>{S.vacRad+=100;}},
-  {icon:'🚀',r:'UNCOMMON',name:'+40% Bullet Spd',desc:'Faster shots, harder to dodge.',fn:()=>{S.bSpd=Math.floor(S.bSpd*1.4);}},
   {icon:'🔱',r:'EPIC',name:'Split Shot +2',desc:'Two extra bullets per volley.',fn:()=>{S.bCount=Math.min(S.bCount+2,7);}},
   {icon:'💊',r:'UNCOMMON',name:'Full Heal',desc:'Restore every hit point.',fn:()=>{S.hp=S.maxHp;}},
   {icon:'❄️',r:'RARE',name:'Chill Aura',desc:'Enemies within 180px move 30% slower.',fn:()=>{S.chillAura=true;}},
-  {icon:'🩸',r:'EPIC',name:'Vampiric III',desc:'Upgrade: +1.5 HP per kill.',fn:()=>{S.vampHeal=1.5;},prereq:()=>S.vampHeal===0},
-  {icon:'🩸',r:'LEGENDARY',name:'Vampiric IV',desc:'Upgrade: +2 HP per kill.',fn:()=>{S.vampHeal=2.0;},prereq:()=>S.vampHeal===1.5},
   {icon:'🌀',r:'LEGENDARY',name:'Void Curvature',desc:'Bullets curve toward nearest enemy.',fn:()=>{S.curvedBullets=true;G_NOTIFY={t:'VOID CURVATURE ACTIVE',c:'#aa66ff'};}},
   {icon:'🔮',r:'EPIC',weapon:true,name:'Orbital Orb I',desc:'A damage orb circles you hitting all contacts.',fn:()=>{S.orbLevel=1;},prereq:()=>S.orbLevel===0},
   {icon:'🔮',r:'RARE',weapon:true,name:'Orbital Orb II',desc:'Second orb joins the orbit.',fn:()=>{S.orbLevel=2;},prereq:()=>S.orbLevel===1},
@@ -618,8 +632,8 @@ const LEGACY_UPGRADES=[
 const UPGRADES=[...buildStatTierUpgrades(),...buildGunUpgrades(),...buildItemUpgrades(),...LEGACY_UPGRADES];
 
 /* Spawn curve: very few early, swarm late */
-function waveSize(){const lv=S.level;return Math.max(1,Math.round(0.055*lv*lv+0.2*lv+0.75));}
-function spawnInterval(){return Math.max(380,1150-S.level*38);}
+function waveSize(){const lv=S.level;const base=Math.max(1,Math.round(0.055*lv*lv+0.2*lv+0.75));return HARD_MODE?Math.max(1,Math.round(base*HARD_MODE_TUNING.spawnCount)):base;}
+function spawnInterval(){const base=Math.max(380,1150-S.level*38);return HARD_MODE?Math.max(220,Math.floor(base*HARD_MODE_TUNING.spawnInterval)):base;}
 
 const ENEMY_TYPES=[
   {key:'e_grunt',label:'GRUNT',weight:5,w:22,h:22,
@@ -756,6 +770,8 @@ class MenuScene extends Phaser.Scene{
     const trainWeapons=document.getElementById('train-weapons');
     const musicVol=document.getElementById('music-vol');
     const sfxVol=document.getElementById('sfx-vol');
+    const hardModeToggle=document.getElementById('hard-mode-toggle');
+    const trainHardToggle=document.getElementById('train-hard-toggle');
     const musicVolVal=document.getElementById('music-vol-val');
     const sfxVolVal=document.getElementById('sfx-vol-val');
     sel.innerHTML='';
@@ -785,10 +801,14 @@ class MenuScene extends Phaser.Scene{
     document.getElementById('save-import-file').onchange=e=>{const f=e.target.files&&e.target.files[0];if(!f)return;importSaveFile(f,ok=>{if(ok)this.scene.restart();});};
     musicVol.value=String(Math.round((AUDIO_SETTINGS.music||0.55)*100));
     sfxVol.value=String(Math.round((AUDIO_SETTINGS.sfx||0.8)*100));
+    hardModeToggle.checked=!!HARD_MODE;
+    trainHardToggle.checked=!!(META.settings&&META.settings.trainingHardMode);
     musicVolVal.textContent=musicVol.value+'%';
     sfxVolVal.textContent=sfxVol.value+'%';
     musicVol.oninput=()=>{AUDIO_SETTINGS.music=Math.min(1,Math.max(0,Number(musicVol.value)/100));musicVolVal.textContent=musicVol.value+'%';this._setMenuMusic(true);META.audio={music:AUDIO_SETTINGS.music,sfx:AUDIO_SETTINGS.sfx};saveMeta();};
     sfxVol.oninput=()=>{AUDIO_SETTINGS.sfx=Math.min(1,Math.max(0,Number(sfxVol.value)/100));sfxVolVal.textContent=sfxVol.value+'%';META.audio={music:AUDIO_SETTINGS.music,sfx:AUDIO_SETTINGS.sfx};saveMeta();};
+    hardModeToggle.onchange=()=>{HARD_MODE=!!hardModeToggle.checked;META.settings={...(META.settings||{}),hardMode:HARD_MODE};saveMeta();};
+    trainHardToggle.onchange=()=>{META.settings={...(META.settings||{}),trainingHardMode:!!trainHardToggle.checked};saveMeta();};
     saveMeta();
     this._setMenuMusic(true);
     menuOv.addEventListener('pointerdown',this._menuGestureStart,{once:true});
@@ -798,10 +818,10 @@ class MenuScene extends Phaser.Scene{
       window.removeEventListener('keydown',this._menuKeyStart);
       this._setMenuMusic(false);
     });
-    document.getElementById('start-btn').onclick=()=>{TRAINING_CFG={enabled:false,bossKey:null,weapons:[]};this._setMenuMusic(false);document.getElementById('menu-ov').classList.remove('visible');this.scene.start('GameScene');};
+    document.getElementById('start-btn').onclick=()=>{TRAINING_CFG={enabled:false,bossKey:null,weapons:[],hardMode:false};this._setMenuMusic(false);document.getElementById('menu-ov').classList.remove('visible');this.scene.start('GameScene');};
     document.getElementById('start-training').onclick=()=>{
       const picked=Array.from(trainWeapons.selectedOptions||[]).map(o=>o.value).filter(Boolean);
-      TRAINING_CFG={enabled:true,bossKey:trainBoss.value||BOSS_TYPES[0].key,weapons:picked.length?picked:['pistol']};
+      TRAINING_CFG={enabled:true,bossKey:trainBoss.value||BOSS_TYPES[0].key,weapons:picked.length?picked:['pistol'],hardMode:!!trainHardToggle.checked};
       this._setMenuMusic(false);
       document.getElementById('menu-ov').classList.remove('visible');
       this.scene.start('GameScene');
@@ -896,6 +916,8 @@ class GameScene extends Phaser.Scene{
     this._bgTrackHtml=null;
     this._trainingMode=!!TRAINING_CFG.enabled;
     this._trainingBossKey=TRAINING_CFG.bossKey||BOSS_TYPES[0].key;
+    this._trainingHardMode=!!TRAINING_CFG.hardMode;
+    this._hardMode=!!(HARD_MODE||(this._trainingMode&&this._trainingHardMode));
     this.gunMap=Object.fromEntries(GUNS.map(g=>[g.id,g]));
     this._applyCharacter();
     if(this._trainingMode){
@@ -947,6 +969,7 @@ class GameScene extends Phaser.Scene{
       this._notify('BOSS TRAINING: '+((BOSS_TYPES.find(b=>b.key===this._trainingBossKey)||{}).name||'BOSS'),'#ff88aa');
       this.time.delayedCall(450,()=>this._spawnBoss(this._trainingBossKey));
     }
+    if(this._hardMode)this._notify('HARD MODE ACTIVE','#ff6666');
 
     const pb=document.getElementById('pause-btn');
     pb.style.display='block';
@@ -1170,7 +1193,8 @@ class GameScene extends Phaser.Scene{
     e.setTexture(type.key);e.body.enable=true;e.body.reset(x,y);e.clearTint();
     if(e.body&&type.w&&type.h)e.body.setSize(type.w,type.h,true);
     e.etype=type;e._mini=isMini;e._phase=Math.random()*Math.PI*2;e.lastShot=0;e._isBoss=false;
-    e.hp=((type.baseHp+S.level*type.hpLvl)*(isMini?.35:1))|0;
+    const hardHp=this._hardMode?HARD_MODE_TUNING.enemyHp:1;
+    e.hp=((type.baseHp+S.level*type.hpLvl)*(isMini?.35:1)*hardHp)|0;
     e.maxHp=e.hp;
     try{if(e.preFX){e.preFX.clear();e.preFX.addGlow(type.glowColor,type.key==='e_brute'?12:5,0,false,.08,10);}}catch(err){}
   }
@@ -1196,7 +1220,9 @@ class GameScene extends Phaser.Scene{
     b.etype={key:bt.key,label:bt.name,w:bt.w,h:bt.h,baseHp:bt.hpBase,hpLvl:bt.hpLvl,spdMult:bt.spdMult,dmg:bt.dmg,xpDrop:bt.xpDrop,glowColor:bt.glow,special:'boss'};
     b._mini=false;b._isBoss=true;b._bossType=bt;b._phase=0;b.lastShot=0;b._phase2=false;
     b.invulnerable=false;b.invulnUntil=0;
-    b.hp=Math.floor((bt.hpBase+S.level*bt.hpLvl)*BOSS_HP_MULT);b.maxHp=b.hp;
+    const bossHard=this._hardMode?HARD_MODE_TUNING.bossHardMult:1;
+    b.etype.dmg=Math.floor(b.etype.dmg*bossHard);
+    b.hp=Math.floor((bt.hpBase+S.level*bt.hpLvl)*BOSS_HP_MULT*bossHard);b.maxHp=b.hp;
     try{if(b.preFX){b.preFX.clear();b.preFX.addGlow(bt.glow,18,0,false,.08,20);}}catch(err){}
     this.activeBoss=b;
     this._bossAtkT=this.time.now+1600;
@@ -1229,8 +1255,9 @@ class GameScene extends Phaser.Scene{
     if(!b||!b.active||this.gamePaused)return;
     const key=(b._bossType&&b._bossType.key)||'boss_void';
     const phase2=!!b._phase2;
-    const burstCd=phase2?900:1400;
-    const patternCd=phase2?2200:3200;
+    const hardRate=this._hardMode?HARD_MODE_TUNING.bossHardMult:1;
+    const burstCd=Math.max(220,Math.floor((phase2?900:1400)/hardRate));
+    const patternCd=Math.max(650,Math.floor((phase2?2200:3200)/hardRate));
     const bossDmg=(b.etype&&b.etype.dmg)||30;
     if(time>(this._bossAtkT||0)){
       this._bossAtkT=time+burstCd;
@@ -1442,7 +1469,7 @@ class GameScene extends Phaser.Scene{
       }
     }
     if(time>(this._bossAtkT3||0)){
-      this._bossAtkT3=time+(phase2?3800:5600);
+      this._bossAtkT3=time+Math.max(900,Math.floor((phase2?3800:5600)/hardRate));
       SFX.extreme();
       this.cameras.main.shake(260,0.008);
       if(key==='boss_titan'){
@@ -1606,7 +1633,8 @@ class GameScene extends Phaser.Scene{
     if(!p)return null;
     p.setTexture('bullet_arc').setPosition(x,y).setActive(true).setVisible(true).setDepth(9).setRotation(angle).setScale(scale).setTint(tint);
     p.body.enable=true;p.body.reset(x,y);
-    p.body.setVelocity(Math.cos(angle)*speed,Math.sin(angle)*speed);
+    const speedMul=this._hardMode?HARD_MODE_TUNING.bossShotSpeed:1;
+    p.body.setVelocity(Math.cos(angle)*speed*speedMul,Math.sin(angle)*speed*speedMul);
     p.dmg=dmg||14;
     p.lifeEnd=this.time.now+5200;
     return p;
@@ -1805,7 +1833,7 @@ class GameScene extends Phaser.Scene{
     if(!gem.active)return;
     gem.setActive(false).setVisible(false);gem.body.enable=false;gem.body.setVelocity(0,0);gem.setPosition(-9999,-9999);
     try{if(gem.preFX)gem.preFX.clear();}catch(e){}
-    S.xp+=(gem.xpVal||1);SFX.gem();
+    S.xp+=(gem.xpVal||1)*(this._hardMode?HARD_MODE_TUNING.xpGain:1);SFX.gem();
     META.totalMaterials+=Math.max(1,Math.round(gem.xpVal||1));
     if(S.xp>=S.xpNext){
       S.xp-=S.xpNext;S.xpNext=Math.floor(S.xpNext*1.35);S.level++;
@@ -1845,7 +1873,8 @@ class GameScene extends Phaser.Scene{
     if(Math.random()<Math.min(S.dodgeCap/100,Math.max(0,S.dodge/100))){this._notify('DODGE','#88ffaa');return;}
     if(S.shielded){S.shielded=false;this.shieldCircle.setVisible(false);SFX.shield();this._notify('\uD83D\uDEE1\uFE0F SHIELD BLOCKED!','#4488ff');this.cameras.main.shake(70,.005);this.iframes=true;this.time.delayedCall(500,()=>{this.iframes=false;});return;}
     const a=S.armor,mult=a>=0?(1/(1+a*0.0666)):(1+Math.abs(a)*0.0666);
-    const reduced=Math.max(1,Math.floor(dmg*mult));
+    const incoming=dmg*(this._hardMode?HARD_MODE_TUNING.incomingDamage:1);
+    const reduced=Math.max(1,Math.floor(incoming*mult));
     S.hp=Math.max(0,S.hp-reduced);this._updateHUD();
     this.cameras.main.shake(160,.011);
     this.iframes=true;this.time.delayedCall(750,()=>{this.iframes=false;});
@@ -2178,7 +2207,7 @@ class GameScene extends Phaser.Scene{
       if(e.burnUntil&&time<e.burnUntil&&time>(e.burnTick||0)){e.burnTick=time+320;e.hp-=Math.max(1,e.burnDmg||1);this._dmgPop(e.x,e.y-10,e.burnDmg||1,'#ff7744');if(e._isBoss)this._updateBossBar();if(e.hp<=0){this._killEnemy(e);return;}}
       if(e.slowUntil&&time>e.slowUntil){e.slowUntil=0;e.slowMult=1;}
       const dx=px-e.x,dy=py-e.y,dist=Math.hypot(dx,dy)||1;
-      let spd=baseSpd*((e.etype&&e.etype.spdMult)||1);
+      let spd=baseSpd*((e.etype&&e.etype.spdMult)||1)*(this._hardMode?HARD_MODE_TUNING.enemySpd:1);
       if(e._isBoss&&e._phase2)spd*=1.45;
       if(S.chillAura&&dist<180)spd*=.7;
       if(e.slowUntil&&e.slowUntil>time)spd*=(e.slowMult||1);
