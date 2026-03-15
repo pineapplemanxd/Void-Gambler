@@ -65,6 +65,12 @@ body{background:var(--bg);display:flex;justify-content:center;align-items:center
 .ctrl-box{background:rgba(0,0,0,.5);border:1px solid #1e0840;border-radius:10px;padding:12px 22px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;min-width:350px}
 .ctrl-row{display:flex;align-items:center;gap:10px;font-size:10px;color:#3a2666;letter-spacing:.12em;text-transform:uppercase}
 .ctrl-key{background:#110825;border:1px solid #3a1260;border-radius:4px;padding:2px 7px;color:#8855cc;font-size:10px;font-family:'Orbitron',monospace;white-space:nowrap;flex-shrink:0}
+.char-box{width:100%;margin-top:6px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;gap:6px}
+.char-select{width:100%;background:#100525;border:1px solid #4a1c7d;color:#d5b2ff;padding:7px 8px;border-radius:6px;font-size:11px;font-family:'Share Tech Mono','Courier New',monospace}
+.char-info{font-size:9px;color:#7e68a8;line-height:1.5;max-height:104px;overflow:auto;background:rgba(0,0,0,.28);border:1px solid #241047;border-radius:6px;padding:7px}
+.save-row{display:flex;gap:6px;flex-wrap:wrap}
+.mini-btn{padding:7px 10px;border-radius:6px;background:#13072a;border:1px solid #5b2496;color:#b583ff;font-size:9px;letter-spacing:.09em;font-family:'Orbitron',monospace;cursor:pointer;text-transform:uppercase}
+.mini-btn:hover{background:#1b0b3b;color:#ddb8ff}
 .legend-row{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-top:2px}
 .epill{font-size:9px;letter-spacing:.09em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid}
 .void-btn{padding:12px 42px;border-radius:9px;cursor:pointer;background:#0e0420;border:1px solid #7722ee;color:#cc88ff;font-size:12px;letter-spacing:.18em;font-family:'Orbitron',monospace;text-transform:uppercase;transition:all .18s ease;box-shadow:0 0 18px rgba(100,20,220,.2)}
@@ -176,6 +182,16 @@ body{background:var(--bg);display:flex;justify-content:center;align-items:center
         <div class="epill" style="color:#4488ff;border-color:#4488ff55">SENTINEL</div>
         <div class="epill" style="color:#cc2244;border-color:#cc224455">VAMPIRE</div>
         <div class="epill" style="color:#ff00cc;border-color:#ff00cc55">&#9733; BOSS lv5+</div>
+      </div>
+      <div class="char-box">
+        <div style="font-size:9px;color:#5a3a85;letter-spacing:.14em;text-transform:uppercase;align-self:center">Character</div>
+        <select id="char-select" class="char-select"></select>
+        <div id="char-info" class="char-info"></div>
+        <div class="save-row">
+          <button id="save-export" class="mini-btn">Export Save</button>
+          <button id="save-import" class="mini-btn">Import Save</button>
+          <input id="save-import-file" type="file" accept="application/json" style="display:none" />
+        </div>
       </div>
     </div>
     <button class="void-btn" id="start-btn">&#9654; &nbsp; ENTER THE VOID</button>
@@ -299,6 +315,66 @@ const GUNS=[
   {id:'taser',name:'Taser',rarity:'UNCOMMON',tags:'Support, Elemental',fireMs:360,pierce:[1,1,1,2],slowRadius:true,elemental:true,desc:'Shock shots create slowing zones.'},
   {id:'wand',name:'Wand',rarity:'COMMON',tags:'Elemental',fireMs:380,pierce:[0,0,1,1],burn:true,elemental:true,desc:'Elemental bolts that burn.'},
 ];
+
+const SAVE_KEY='voidGamblerSaveV2';
+const META_DEFAULT={totalKills:0,totalMaterials:0,totalDeaths:0,bestLevel:1,bestUniqueWeapons:1,selectedCharacter:'well_rounded',unlockedChars:{}};
+let META=loadMeta();
+let SELECTED_CHARACTER=META.selectedCharacter||'well_rounded';
+
+function loadMeta(){
+  try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return {...META_DEFAULT};return {...META_DEFAULT,...JSON.parse(raw)};}catch(e){return {...META_DEFAULT};}
+}
+function saveMeta(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(META));}catch(e){}}
+function exportSaveFile(){
+  const blob=new Blob([JSON.stringify(META,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='void-gambler-save.json';a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),500);
+}
+function importSaveFile(file,cb){
+  const r=new FileReader();
+  r.onload=()=>{try{const j=JSON.parse(String(r.result||'{}'));META={...META_DEFAULT,...j};SELECTED_CHARACTER=META.selectedCharacter||'well_rounded';saveMeta();if(cb)cb(true);}catch(e){if(cb)cb(false);}};
+  r.readAsText(file);
+}
+
+const CHARACTERS=[
+  {id:'well_rounded',name:'Well Rounded',unlockBy:'Unlocked by default',unlock:()=>true,effects:['+5 Max HP','+5% Speed','+8 Harvesting'],mods:{maxHp:5,speedPct:5,harvesting:8,startWeapon:'potato'}},
+  {id:'brawler',name:'Brawler',unlockBy:'Unlocked by default',unlock:()=>true,effects:['+15% Dodge','-50 Range','-50 Ranged Damage'],mods:{dodge:15,range:-50,rangedDmg:-50}},
+  {id:'crazy',name:'Crazy',unlockBy:'Unlocked by default',unlock:()=>true,effects:['+100 Range with precise','+25% Attack Speed','-30% Dodge'],mods:{range:100,attackSpeed:25,dodge:-30,engineering:-10,rangedDmg:-10}},
+  {id:'ranger',name:'Ranger',unlockBy:'Unlocked by default',unlock:()=>true,effects:['+50 Range','Start with Pistol','Ranged focus'],mods:{range:50,startWeapon:'pistol'}},
+  {id:'mage',name:'Mage',unlockBy:'Unlocked by default',unlock:()=>true,effects:['Elemental upgrades stronger','Start with Wand','No melee/ranged scaling'],mods:{elementalDmg:8,startWeapon:'wand'}},
+  {id:'chunky',name:'Chunky',unlockBy:'Die for the first time',unlock:()=>META.totalDeaths>=1,effects:['Tanky HP growth','-100% Life Steal','No speed upgrades'],mods:{lifeSteal:-100,maxHp:20}},
+  {id:'old',name:'Old',unlockBy:'Kill 300 enemies',unlock:()=>META.totalKills>=300,effects:['-25% enemy speed','+10 Harvesting','-10% Speed'],mods:{harvesting:10,speedPct:-10,enemySpeedMult:.75}},
+  {id:'lucky',name:'Lucky',unlockBy:'Collect 300 materials',unlock:()=>META.totalMaterials>=300,effects:['+100 Luck','-60% Attack Speed','-50% XP gain'],mods:{luck:100,attackSpeed:-60,xpReqMult:1.5}},
+  {id:'mutant',name:'Mutant',unlockBy:'Kill 2000 enemies',unlock:()=>META.totalKills>=2000,effects:['-66% XP required'],mods:{xpReqMult:.34}},
+  {id:'generalist',name:'Generalist',unlockBy:'Collect 2000 materials',unlock:()=>META.totalMaterials>=2000,effects:['3 melee + 3 ranged cap style'],mods:{maxWeapons:6}},
+  {id:'loud',name:'Loud',unlockBy:'Kill 5000 enemies',unlock:()=>META.totalKills>=5000,effects:['+30% Damage','+50% Enemies'],mods:{damagePct:30,enemyCountMult:1.5}},
+  {id:'multitasker',name:'Multitasker',unlockBy:'Collect 5000 materials',unlock:()=>META.totalMaterials>=5000,effects:['+20% Damage','Up to 12 weapons'],mods:{damagePct:20,maxWeapons:12}},
+  {id:'wildling',name:'Wildling',unlockBy:'Kill 10000 enemies',unlock:()=>META.totalKills>=10000,effects:['Primitive-focused','Tier cap style'],mods:{lifeSteal:30}},
+  {id:'pacifist',name:'Pacifist',unlockBy:'Collect 10000 materials',unlock:()=>META.totalMaterials>=10000,effects:['-100% Damage','Economy scaling'],mods:{damagePct:-100,engineering:-100}},
+  {id:'gladiator',name:'Gladiator',unlockBy:'Kill 20000 enemies',unlock:()=>META.totalKills>=20000,effects:['Melee focused','-30 Luck'],mods:{meleeDmg:5,luck:-30}},
+  {id:'sick',name:'Sick',unlockBy:'Reach -5% HP Regen',unlock:()=>META.unlockedChars.sick===true,effects:['+12 Max HP','+25% Life Steal','Lose HP over time'],mods:{maxHp:12,lifeSteal:25,drainHpPerSec:1}},
+  {id:'ghost',name:'Ghost',unlockBy:'Reach +60% Dodge',unlock:()=>META.unlockedChars.ghost===true,effects:['+10 Ethereal damage','+30% Dodge','-100 Armor'],mods:{dodge:30,armor:-100}},
+  {id:'speedy',name:'Speedy',unlockBy:'Reach +50% Speed',unlock:()=>META.unlockedChars.speedy===true,effects:['+30% Speed','-3 Armor'],mods:{speedPct:30,armor:-3}},
+  {id:'engineer',name:'Engineer',unlockBy:'Get 5 turrets simultaneously',unlock:()=>META.unlockedChars.engineer===true,effects:['+10 Engineering','Engineering mods +25%'],mods:{engineering:10}},
+  {id:'hunter',name:'Hunter',unlockBy:'Reach +300 Range',unlock:()=>META.unlockedChars.hunter===true,effects:['+100 Range','Crit mods +25%'],mods:{range:100}},
+  {id:'artificer',name:'Artificer',unlockBy:'Kill 15 in one explosion',unlock:()=>META.unlockedChars.artificer===true,effects:['+175% explosion damage'],mods:{explosionDmgPct:175,damagePct:-100}},
+  {id:'cyborg',name:'Cyborg',unlockBy:'10 ranged + 3 structures',unlock:()=>META.unlockedChars.cyborg===true,effects:['Start with Minigun','Ranged mods +200%'],mods:{startWeapon:'minigun',rangedDmg:20,engineering:-75}},
+  {id:'lich',name:'Lich',unlockBy:'Reach +100 Max HP',unlock:()=>META.unlockedChars.lich===true,effects:['+10 HP Regen','+10% Life Steal'],mods:{hpRegen:10,lifeSteal:10}},
+  {id:'apprentice',name:'Apprentice',unlockBy:'Reach level 20',unlock:()=>META.bestLevel>=20,effects:['Level-up scaling package'],mods:{}},
+  {id:'golem',name:'Golem',unlockBy:'Finish wave with 1 HP',unlock:()=>META.unlockedChars.golem===true,effects:['+20 Max HP','Cannot heal'],mods:{maxHp:20,noHeal:true}},
+  {id:'one_armed',name:'One Armed',unlockBy:'Win a run in Danger 0',unlock:()=>META.unlockedChars.one_armed===true,effects:['+200% Attack Speed','Only one weapon'],mods:{attackSpeed:200,maxWeapons:1}},
+  {id:'soldier',name:'Soldier',unlockBy:'Win a run in Danger 2',unlock:()=>META.unlockedChars.soldier===true,effects:['Stand still bonuses'],mods:{speedPct:10,vacRangePct:200}},
+  {id:'baby',name:'Baby',unlockBy:'Reach level 10 before wave 6',unlock:()=>META.unlockedChars.baby===true,effects:['Starts with 1 slot','Gain slot on level-up (max 24)'],mods:{maxWeapons:1,babyMode:true}},
+  {id:'vagabond',name:'Vagabond',unlockBy:'Have 6 different weapons at once',unlock:()=>META.bestUniqueWeapons>=6,effects:['No duplicate weapons','Penalty armor/dodge'],mods:{armor:-5,dodge:-5,noDuplicate:true}},
+  {id:'technomage',name:'Technomage',unlockBy:'10 elemental + 3 structures',unlock:()=>META.unlockedChars.technomage===true,effects:['Elemental + structure synergy'],mods:{elementalDmg:10,xpReqMult:1.75}},
+  {id:'vampire',name:'Vampire',unlockBy:'Reach +40% Life Steal',unlock:()=>META.unlockedChars.vampire===true,effects:['Missing HP scaling','-100 HP Regen'],mods:{hpRegen:-100,damagePct:-60}},
+  {id:'diver',name:'Diver',unlockBy:'Kill 1000 enemies from >700 range',unlock:()=>META.unlockedChars.diver===true,effects:['Start with Harpoon Gun','Crit scaling'],mods:{startWeapon:'harpoon',range:120}},
+  {id:'buccaneer',name:'Buccaneer',unlockBy:'Reach +100% Pickup Range',unlock:()=>META.unlockedChars.buccaneer===true,effects:['Picking up materials resets all weapon cooldowns'],mods:{resetAllOnPickup:true,attackSpeed:-100}},
+  {id:'romantic',name:'Romantic',unlockBy:'Finish a run with 0 Curse',unlock:()=>META.unlockedChars.romantic===true,effects:['Low HP charm chance'],mods:{range:50,startWeapon:'flute'}},
+  {id:'captain',name:'Captain (DLC)',unlockBy:'Unlocked by default',unlock:()=>true,effects:['XP for free weapon slots','+100% level upgrade stats'],mods:{xpFreeSlots:true,maxWeapons:6}},
+];
+
+function getCharacterById(id){return CHARACTERS.find(c=>c.id===id)||CHARACTERS[0];}
 
 const RC={COMMON:'#aaaaaa',UNCOMMON:'#44ee88',RARE:'#44aaff',EPIC:'#cc44ff',LEGENDARY:'#ffcc00'};
 
@@ -430,6 +506,30 @@ class MenuScene extends Phaser.Scene{
     document.getElementById('hud').style.display='none';
     document.getElementById('boss-bar-wrap').style.display='none';
     document.getElementById('pause-btn').style.display='none';
+    const sel=document.getElementById('char-select');
+    const info=document.getElementById('char-info');
+    sel.innerHTML='';
+    CHARACTERS.forEach(ch=>{
+      const unlocked=ch.unlock();
+      if(unlocked)META.unlockedChars[ch.id]=true;
+      const o=document.createElement('option');
+      o.value=ch.id;
+      o.textContent=(unlocked?'':'🔒 ')+ch.name;
+      o.disabled=!unlocked;
+      sel.appendChild(o);
+    });
+    if(!META.unlockedChars[SELECTED_CHARACTER])SELECTED_CHARACTER='well_rounded';
+    sel.value=SELECTED_CHARACTER;
+    const renderInfo=()=>{
+      const c=getCharacterById(sel.value);
+      info.innerHTML='<b style="color:#d3a0ff">'+c.name+'</b><br><span style="color:#8f73be">Unlock: '+c.unlockBy+'</span><br>'+c.effects.map(x=>'• '+x).join('<br>');
+    };
+    sel.onchange=()=>{SELECTED_CHARACTER=sel.value;META.selectedCharacter=SELECTED_CHARACTER;saveMeta();renderInfo();};
+    renderInfo();
+    document.getElementById('save-export').onclick=()=>exportSaveFile();
+    document.getElementById('save-import').onclick=()=>document.getElementById('save-import-file').click();
+    document.getElementById('save-import-file').onchange=e=>{const f=e.target.files&&e.target.files[0];if(!f)return;importSaveFile(f,ok=>{if(ok)this.scene.restart();});};
+    saveMeta();
     document.getElementById('start-btn').onclick=()=>{document.getElementById('menu-ov').classList.remove('visible');this.scene.start('GameScene');};
   }
   update(time,delta){
@@ -441,6 +541,34 @@ class MenuScene extends Phaser.Scene{
 
 class GameScene extends Phaser.Scene{
   constructor(){super({key:'GameScene'});}
+
+  _applyCharacter(){
+    const c=getCharacterById(SELECTED_CHARACTER);
+    const m=c.mods||{};
+    S.characterId=c.id;
+    S.maxWeapons=m.maxWeapons||6;
+    if(typeof m.maxHp==='number'){S.maxHp+=m.maxHp;S.hp=Math.min(S.maxHp,S.hp+m.maxHp);}
+    if(typeof m.speedPct==='number')S.spd=Math.max(20,Math.floor(S.spd*(1+m.speedPct/100)));
+    if(typeof m.attackSpeed==='number')S.attackSpeed+=m.attackSpeed;
+    if(typeof m.dodge==='number')S.dodge+=m.dodge;
+    if(typeof m.range==='number')S.range+=m.range;
+    if(typeof m.rangedDmg==='number')S.rangedDmg+=m.rangedDmg;
+    if(typeof m.elementalDmg==='number')S.elementalDmg+=m.elementalDmg;
+    if(typeof m.engineering==='number')S.engineering+=m.engineering;
+    if(typeof m.harvesting==='number')S.harvesting+=m.harvesting;
+    if(typeof m.lifeSteal==='number')S.lifeSteal+=m.lifeSteal;
+    if(typeof m.armor==='number')S.armor+=m.armor;
+    if(typeof m.luck==='number')S.luck+=m.luck;
+    if(typeof m.hpRegen==='number')S.hpRegen+=m.hpRegen;
+    if(typeof m.damagePct==='number')S.dmg=Math.max(0,Math.floor(S.dmg*(1+m.damagePct/100)));
+    if(typeof m.xpReqMult==='number')S.xpNext=Math.max(2,Math.floor(S.xpNext*m.xpReqMult));
+    if(m.startWeapon&&this.gunMap[m.startWeapon]){
+      if(!S.loadout.includes(m.startWeapon)&&S.loadout.length<S.maxWeapons)S.loadout.push(m.startWeapon);
+      S.currentGun=m.startWeapon;
+      S.gunLevels[m.startWeapon]=Math.max(1,S.gunLevels[m.startWeapon]||1);
+    }
+    if(c.id==='baby'){S.maxWeapons=1;}
+  }
 
   preload(){
     const mk=(key,w,h,fn)=>{const g=this.make.graphics({add:false});fn(g);g.generateTexture(key,w,h);g.destroy();};
@@ -474,6 +602,7 @@ class GameScene extends Phaser.Scene{
     this.gunTimers={};this.gunShotCounter={};
     this.activeBoss=null;
     this.gunMap=Object.fromEntries(GUNS.map(g=>[g.id,g]));
+    this._applyCharacter();
 
     this.physics.world.setBounds(0,0,WW,WH);
     this.cameras.main.setBounds(0,0,WW,WH);
@@ -829,6 +958,7 @@ class GameScene extends Phaser.Scene{
     if(!enemy.active)return;
     const ex=enemy.x,ey=enemy.y,type=enemy.etype||ENEMY_TYPES[0];
     S.kills++;
+    META.totalKills++;
     if(S.loadout.includes('ghost_scepter')){
       this._gunKills++;
       const gun=this.gunMap.ghost_scepter,tier=this._gunTier(gun),req=(gun.ghostHpReq&&gun.ghostHpReq[tier-1])||20;
@@ -880,6 +1010,7 @@ class GameScene extends Phaser.Scene{
     gem.setActive(false).setVisible(false);gem.body.enable=false;gem.body.setVelocity(0,0);gem.setPosition(-9999,-9999);
     try{if(gem.preFX)gem.preFX.clear();}catch(e){}
     S.xp+=(gem.xpVal||1);SFX.gem();
+    META.totalMaterials+=Math.max(1,Math.round(gem.xpVal||1));
     if(S.xp>=S.xpNext){
       S.xp-=S.xpNext;S.xpNext=Math.floor(S.xpNext*1.35);S.level++;
       if(S.level%5===0)this.time.delayedCall(300,()=>this._spawnBoss());
@@ -892,9 +1023,10 @@ class GameScene extends Phaser.Scene{
     it.setActive(false).setVisible(false);it.body.enable=false;it.body.setVelocity(0,0);it.setPosition(-9999,-9999);
     try{if(it.preFX)it.preFX.clear();}catch(e){}
     SFX.item();
+    const resetAll=(S.characterId==='buccaneer');
     S.loadout.forEach(id=>{
       const gun=this.gunMap[id],timer=this.gunTimers&&this.gunTimers[id];
-      if(gun&&gun.resetOnMaterial&&timer)timer.reset({delay:40,callback:()=>this._fireWeapon(id),callbackScope:this,loop:true});
+      if((resetAll||(gun&&gun.resetOnMaterial))&&timer)timer.reset({delay:40,callback:()=>this._fireWeapon(id),callbackScope:this,loop:true});
     });
     switch(it.dropType){
       case 'drop_magnet':SFX.magnet();this.gems.getChildren().forEach(gem=>{if(gem.active)this._collectGem(gem);});this._notify('\uD83E\uDDF2 MAGNET! ALL GEMS COLLECTED','#00ccff');break;
@@ -1015,7 +1147,13 @@ class GameScene extends Phaser.Scene{
     this.gamePaused=true;this.physics.pause();
     this._allTimers().forEach(t=>{if(t)t.paused=true;});
     SFX.levelup();
-    const eligible=UPGRADES.filter(u=>!u.prereq||u.prereq());
+    const eligible=UPGRADES.filter(u=>{
+      if(u.weapon&&u.name){
+        const g=GUNS.find(x=>x.name===u.name);
+        if(g&&!S.loadout.includes(g.id)&&S.loadout.length>=S.maxWeapons)return false;
+      }
+      return !u.prereq||u.prereq();
+    });
     const choices=Phaser.Utils.Array.Shuffle([...eligible]).slice(0,3);
     document.getElementById('ov-eyebrow').textContent='void gambler';
     document.getElementById('ov-title').textContent='LEVEL '+S.level;
@@ -1037,6 +1175,7 @@ class GameScene extends Phaser.Scene{
   _resumePlay(){
     document.getElementById('lvl-ov').classList.remove('visible');
     if(G_NOTIFY){this._notify(G_NOTIFY.t,G_NOTIFY.c);G_NOTIFY=null;}
+    if(S.characterId==='baby')S.maxWeapons=Math.min(24,S.maxWeapons+1);
     this._syncWeapons();
     this._allTimers().forEach(t=>{if(t)t.paused=false;});
     this.physics.resume();this.gamePaused=false;this._updateHUD();
@@ -1045,6 +1184,18 @@ class GameScene extends Phaser.Scene{
   _gameOver(){
     if(this.gamePaused)return;
     this.gamePaused=true;this.physics.pause();
+    META.totalDeaths++;
+    META.bestLevel=Math.max(META.bestLevel,S.level);
+    META.bestUniqueWeapons=Math.max(META.bestUniqueWeapons,S.loadout.length);
+    if(S.hpRegen<=-5)META.unlockedChars.sick=true;
+    if(S.dodge>=60)META.unlockedChars.ghost=true;
+    if(S.spd>=Math.floor(DEFAULTS.spd*1.5))META.unlockedChars.speedy=true;
+    if(S.range>=300)META.unlockedChars.hunter=true;
+    if(S.maxHp>=200)META.unlockedChars.lich=true;
+    if(S.lifeSteal>=40)META.unlockedChars.vampire=true;
+    if(S.loadout.length>=6)META.unlockedChars.vagabond=true;
+    META.selectedCharacter=SELECTED_CHARACTER;
+    saveMeta();
     this._allTimers().forEach(t=>{if(t)t.paused=true;});
     SFX.die();
     document.getElementById('boss-bar-wrap').style.display='none';
@@ -1106,7 +1257,7 @@ class GameScene extends Phaser.Scene{
       spEffects.innerHTML=effects.length?effects.map(e=>'<span class="sp-pill">'+e+'</span>').join(''):'<span class="sp-pill">No active effects</span>';
     }
     const spGun=document.getElementById('sp-gun');
-    if(spGun)spGun.innerHTML='<span class="sp-pill">'+cg.name+'</span><span class="sp-pill">Tier '+tier+'</span><span class="sp-pill">'+cg.tags+'</span>';
+    if(spGun)spGun.innerHTML='<span class="sp-pill">'+cg.name+'</span><span class="sp-pill">Tier '+tier+'</span><span class="sp-pill">'+cg.tags+'</span><span class="sp-pill">Slots '+S.loadout.length+'/'+S.maxWeapons+'</span>';
     const spWeapons=document.getElementById('sp-weapons');
     if(spWeapons){
       const load=S.loadout.map(id=>this.gunMap[id]).filter(Boolean);
