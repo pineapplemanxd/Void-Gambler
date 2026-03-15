@@ -4,15 +4,21 @@
   "private": true,
   "author": "Void Gambler",
   "description": "Void Gambler desktop build with Discord Rich Presence",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pineapplemanxd/Void-Gambler.git"
+  },
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build:win": "electron-builder --win nsis",
     "build:portable": "electron-builder --win portable",
-    "build:exe": "electron-packager . \"Void Gambler\" --platform=win32 --arch=x64 --out=dist --overwrite --prune=true"
+    "build:exe": "electron-builder --win nsis",
+    "build:packager": "electron-packager . \"Void Gambler\" --platform=win32 --arch=x64 --out=dist --overwrite --prune=true"
   },
   "dependencies": {
     "discord-rpc": "^4.0.1",
+    "electron-updater": "^6.6.2",
     "phaser": "^3.60.0"
   },
   "devDependencies": {
@@ -52,6 +58,11 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "pineapplemanxd",
+      "repo": "Void-Gambler"
     }
   }
 }
