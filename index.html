@@ -9,6 +9,25 @@
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{--gold:#ffc200;--purple:#b06fff;--blue:#22aaff;--red:#ff3a3a;--bg:#04030f}
 body{background:var(--bg);display:flex;justify-content:center;align-items:center;min-height:100vh;overflow:hidden;font-family:'Share Tech Mono','Courier New',monospace}
+#game-shell{position:relative;z-index:2;display:grid;grid-template-columns:minmax(220px,21vw) 900px minmax(220px,21vw);gap:16px;align-items:stretch;padding:12px;max-width:100vw;height:100vh}
+#game-wrap{width:900px;height:580px;align-self:center;justify-self:center;border:1px solid #210f40;box-shadow:0 0 30px rgba(100,20,220,.28),0 20px 45px rgba(0,0,0,.55);border-radius:10px;overflow:hidden;background:#050510}
+.side-panel{align-self:center;height:580px;background:linear-gradient(160deg,#09051a,#04020d);border:1px solid #1e0b3a;border-radius:10px;box-shadow:inset 0 0 24px rgba(140,70,255,.08),0 10px 30px rgba(0,0,0,.45);padding:10px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.sp-title{font-family:'Orbitron',monospace;font-size:11px;letter-spacing:.2em;color:#aa66ff;text-transform:uppercase;border-bottom:1px solid #2b1552;padding-bottom:6px}
+.sp-block{border:1px solid #1b0a37;background:rgba(0,0,0,.35);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:5px;min-height:0}
+.sp-sub{font-size:9px;color:#664499;letter-spacing:.12em;text-transform:uppercase}
+.sp-list{display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start;max-height:100%;overflow:auto;padding-right:2px}
+.sp-pill{font-size:9px;padding:2px 6px;border-radius:999px;border:1px solid #3a1c6a;background:rgba(80,20,150,.35);color:#c293ff;letter-spacing:.08em;white-space:nowrap}
+.sp-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 6px;max-height:100%;overflow:auto;padding-right:2px}
+.sp-stat{font-size:10px;color:#9c84cc;letter-spacing:.05em;display:flex;justify-content:space-between;gap:6px;border-bottom:1px dashed rgba(120,80,190,.2);padding-bottom:2px}
+.sp-stat b{color:#f4d48a;font-weight:700}
+@media (max-width:1450px){
+  #game-shell{grid-template-columns:1fr 900px 1fr}
+  .side-panel{opacity:.9}
+}
+@media (max-width:1220px){
+  #game-shell{grid-template-columns:900px;padding:8px;justify-content:center}
+  .side-panel{display:none}
+}
 #vignette{position:fixed;inset:0;z-index:4;pointer-events:none;background:radial-gradient(ellipse at center,transparent 35%,rgba(0,0,0,.55) 80%,rgba(0,0,0,.82) 100%)}
 #hud{position:fixed;top:13px;left:50%;transform:translateX(-50%);z-index:20;pointer-events:none;user-select:none;display:none;flex-direction:column;align-items:center;gap:4px}
 .hud-top{display:flex;align-items:center;justify-content:space-between;width:420px;gap:6px}
@@ -83,6 +102,35 @@ body{background:var(--bg);display:flex;justify-content:center;align-items:center
 </style>
 </head>
 <body>
+<div id="game-shell">
+  <aside id="left-panel" class="side-panel">
+    <div class="sp-title">Run Intel</div>
+    <div class="sp-block" style="flex:0 0 auto">
+      <div class="sp-sub">Core stats</div>
+      <div id="sp-stats" class="sp-stat-grid"></div>
+    </div>
+    <div class="sp-block" style="flex:1 1 auto">
+      <div class="sp-sub">Active effects</div>
+      <div id="sp-effects" class="sp-list"></div>
+    </div>
+  </aside>
+  <div id="game-wrap"></div>
+  <aside id="right-panel" class="side-panel">
+    <div class="sp-title">Loadout</div>
+    <div class="sp-block" style="flex:0 0 auto">
+      <div class="sp-sub">Current gun</div>
+      <div id="sp-gun" class="sp-list"></div>
+    </div>
+    <div class="sp-block" style="flex:0 0 auto">
+      <div class="sp-sub">Weapons</div>
+      <div id="sp-weapons" class="sp-list"></div>
+    </div>
+    <div class="sp-block" style="flex:1 1 auto">
+      <div class="sp-sub">Upgrade history</div>
+      <div id="sp-upgrades" class="sp-list"></div>
+    </div>
+  </aside>
+</div>
 <div id="vignette"></div>
 <div id="hud">
   <div class="hud-top">
@@ -180,11 +228,18 @@ const DEFAULTS={
   fireMs:1000,bSpd:520,pierce:1,bCount:1,
   xpMult:1,vacRad:130,
   level:1,xp:0,xpNext:8,kills:0,
+  hpRegen:0,lifeSteal:0,
+  meleeDmg:0,rangedDmg:0,elementalDmg:0,
+  attackSpeed:0,critChance:0,engineering:0,range:0,
+  armor:0,dodge:0,luck:0,harvesting:0,
   orbLevel:0,orbDmg:30,orbRadius:88,
   novaLevel:0,novaDmg:40,
   missileLevel:0,missileDmg:70,
   chainLevel:0,chainDmg:45,
   shotgunLevel:0,shotgunDmg:20,
+  currentGun:'pistol',
+  loadout:['pistol'],
+  shotCounter:0,
   curvedBullets:false,
   vampHeal:0,
   deathExp:false,chillAura:false,
@@ -192,6 +247,116 @@ const DEFAULTS={
   frenzyActive:false,frenzyBonus:0,
 };
 let S=Object.assign({},DEFAULTS);
+
+const STAT_LINES=[
+  {key:'maxHp',label:'Max HP',icon:'Heart',vals:[3,6,9,12],apply:v=>{S.maxHp+=v;S.hp=Math.min(S.maxHp,S.hp+v);}},
+  {key:'hpRegen',label:'HP Regen',icon:'Lungs',vals:[2,3,4,5],apply:v=>{S.hpRegen+=v;}},
+  {key:'lifeSteal',label:'Life Steal',icon:'Teeth',vals:[1,2,3,4],apply:v=>{S.lifeSteal+=v;}},
+  {key:'dmg',label:'Damage',icon:'Triceps',vals:[5,8,12,16],apply:v=>{S.dmg+=v;}},
+  {key:'meleeDmg',label:'Melee Damage',icon:'Forearms',vals:[2,4,6,8],apply:v=>{S.meleeDmg+=v;}},
+  {key:'rangedDmg',label:'Ranged Damage',icon:'Shoulders',vals:[1,2,3,4],apply:v=>{S.rangedDmg+=v;}},
+  {key:'elementalDmg',label:'Elemental Damage',icon:'Brain',vals:[1,2,3,4],apply:v=>{S.elementalDmg+=v;}},
+  {key:'attackSpeed',label:'Attack Speed',icon:'Reflexes',vals:[5,10,15,20],apply:v=>{S.attackSpeed+=v;S.fireMs=Math.max(90,Math.floor(S.fireMs*(1-v/100)));}},
+  {key:'critChance',label:'Crit Chance',icon:'Fingers',vals:[3,5,7,9],apply:v=>{S.critChance+=v;}},
+  {key:'engineering',label:'Engineering',icon:'Skull',vals:[2,3,4,5],apply:v=>{S.engineering+=v;}},
+  {key:'range',label:'Range',icon:'Eyes',vals:[15,30,45,60],apply:v=>{S.range+=v;}},
+  {key:'armor',label:'Armor',icon:'Chest',vals:[1,2,3,4],apply:v=>{S.armor+=v;}},
+  {key:'dodge',label:'Dodge',icon:'Back',vals:[3,6,9,12],apply:v=>{S.dodge+=v;}},
+  {key:'spd',label:'Speed',icon:'Legs',vals:[3,6,9,12],apply:v=>{S.spd+=v;}},
+  {key:'luck',label:'Luck',icon:'Nose',vals:[5,10,15,20],apply:v=>{S.luck+=v;}},
+  {key:'harvesting',label:'Harvesting',icon:'Hands',vals:[5,8,10,12],apply:v=>{S.harvesting+=v;S.xpMult+=v/100;}},
+];
+
+const GUNS=[
+  {id:'elementgun',name:'Elementgun',rarity:'COMMON',tags:'Naval, Gun',fireMs:620,pierce:[2,2,2,2],falloff:.75,resetOnMaterial:true,elemental:true,desc:'Picking up material resets cooldown. Pierces 2 with 25% falloff.'},
+  {id:'chain_gun',name:'Chain Gun',rarity:'LEGENDARY',tags:'Legendary, Gun',fireMs:110,pierce:[1,1,1,1],falloff:.5,chainCooldownEvery100:2040,desc:'Every 100 shots, cooldown becomes 2.04s.'},
+  {id:'crossbow',name:'Crossbow',rarity:'RARE',tags:'Precise, Medieval',fireMs:860,pierce:[0,0,0,0],critPierce:[1,2,3,4],falloff:.72,precise:true,desc:'Critical hits gain scaling pierce.'},
+  {id:'double_barrel',name:'Double Barrel Shotgun',rarity:'UNCOMMON',tags:'Gun',fireMs:900,pellets:6,pierce:[2,2,2,3],falloff:.7,desc:'Wide burst, pierce with 30% damage decay.'},
+  {id:'fireball',name:'Fireball',rarity:'UNCOMMON',tags:'Explosive, Elemental',fireMs:760,pierce:[0,0,0,0],explosive:true,burn:true,elemental:true,desc:'Explodes on hit and burns enemies.'},
+  {id:'flamethrower',name:'Flamethrower',rarity:'RARE',tags:'Elemental, Heavy',fireMs:95,pierce:[99,99,99,99],fixedDamage:1,burn:true,elemental:true,desc:'Rapid low damage flame stream with burn.'},
+  {id:'flute',name:'Flute',rarity:'RARE',tags:'Musical',fireMs:640,pierce:[0,0,0,0],charmThreshold:[.60,.65,.70,.75],charmChance:[.10,.15,.20,.25],desc:'Can charm weakened enemies for 8s.'},
+  {id:'gatling_laser',name:'Gatling Laser',rarity:'LEGENDARY',tags:'Legendary, Heavy',fireMs:130,pierce:[3,3,3,3],falloff:.75,elemental:true,desc:'Pierces 3 with 25% decay per pierce.'},
+  {id:'ghost_scepter',name:'Ghost Scepter',rarity:'EPIC',tags:'Ethereal',fireMs:540,pierce:[1,1,1,2],ghostHpReq:[20,18,16,12],desc:'+1 Max HP every threshold kills with this weapon.'},
+  {id:'grenade_launcher',name:'Grenade Launcher',rarity:'RARE',tags:'Heavy, Explosive',fireMs:920,pierce:[0,0,0,0],explosive:true,bounce:[1,1,1,1],longCooldownEvery:[2,3,4,4],desc:'Timed heavy shots; bounces once then explodes.'},
+  {id:'harpoon',name:'Harpoon Gun',rarity:'UNCOMMON',tags:'Naval, Gun',fireMs:670,pierce:[3,4,5,5],falloff:.75,slowRadius:true,desc:'Area slow around impact and high pierce.'},
+  {id:'icicle',name:'Icicle',rarity:'UNCOMMON',tags:'Precise, Elemental',fireMs:620,pierce:[1,1,1,1],falloff:.5,elemental:true,desc:'Second target takes half damage.'},
+  {id:'javelin',name:'Javelin',rarity:'UNCOMMON',tags:'Primitive',fireMs:610,pierce:[2,3,4,5],falloff:.75,forcedCritEvery:[5,4,3,2],desc:'Periodic guaranteed crits with strong pierce.'},
+  {id:'laser_gun',name:'Laser Gun',rarity:'COMMON',tags:'Gun',fireMs:420,pierce:[1,1,1,1],falloff:.75,elemental:true,desc:'Clean beam with secondary 75% hit.'},
+  {id:'medical_gun',name:'Medical Gun',rarity:'UNCOMMON',tags:'Medical, Gun',fireMs:520,pierce:[0,0,0,0],healOnHit:.4,desc:'Each hit restores small HP.'},
+  {id:'minigun',name:'Minigun',rarity:'UNCOMMON',tags:'Heavy, Gun',fireMs:105,pierce:[1,1,2,2],falloff:.5,desc:'Sustained rapid fire with half-damage pierce.'},
+  {id:'nuclear_launcher',name:'Nuclear Launcher',rarity:'LEGENDARY',tags:'Heavy, Explosive',fireMs:1400,pierce:[0,0,0,0],explosive:true,bigExplosion:true,desc:'Massive blast projectiles.'},
+  {id:'obliterator',name:'Obliterator',rarity:'LEGENDARY',tags:'Gun, Heavy',fireMs:980,pierce:[99,99,99,99],falloff:1,desc:'Pierces through everything with full damage.'},
+  {id:'particle_acc',name:'Particle Accelerator',rarity:'LEGENDARY',tags:'Heavy, Elemental',fireMs:360,pierce:[99,99,99,99],falloff:.9,burn:true,elemental:true,engSlow:true,noBounce:true,desc:'Burning beam with engineering-based slow.'},
+  {id:'pistol',name:'Pistol',rarity:'COMMON',tags:'Gun',fireMs:430,pierce:[1,1,1,1],falloff:.5,desc:'Reliable sidearm with 50% second hit.'},
+  {id:'potato',name:'Potato Thrower',rarity:'COMMON',tags:'Support',fireMs:500,pierce:[0,0,0,0],vacBoost:24,desc:'Supportive thrower that widens pickup vacuum.'},
+  {id:'revolver',name:'Revolver',rarity:'COMMON',tags:'Gun',fireMs:560,pierce:[1,1,1,1],falloff:.5,longCooldownEvery:[6,6,6,6],desc:'Every 6th shot has longer cooldown.'},
+  {id:'rocket',name:'Rocket Launcher',rarity:'RARE',tags:'Heavy, Explosive',fireMs:920,pierce:[0,0,0,0],explosive:true,desc:'Explosive rockets.'},
+  {id:'shredder',name:'Shredder',rarity:'EPIC',tags:'Gun, Explosive',fireMs:450,pierce:[3,3,3,3],falloff:1,explodeChance:[.5,.65,.8,1],desc:'Piercing rounds can erupt on hit.'},
+  {id:'shuriken',name:'Shuriken',rarity:'UNCOMMON',tags:'Precise',fireMs:300,pierce:[0,0,0,0],critBounce:[1,2,3,4],desc:'Critical hits bounce to new targets.'},
+  {id:'slingshot',name:'Slingshot',rarity:'COMMON',tags:'Primitive',fireMs:420,pierce:[0,0,0,0],bounce:[1,2,3,4],desc:'Ricochets between enemies.'},
+  {id:'smg',name:'SMG',rarity:'COMMON',tags:'Gun',fireMs:140,pierce:[0,0,1,1],desc:'Fast spray weapon.'},
+  {id:'sniper',name:'Sniper Gun',rarity:'RARE',tags:'Gun, Precise',fireMs:1140,pierce:[2,2,2,3],spawnOnHit:[5,5,8,8],desc:'Impacts spawn extra projectiles.'},
+  {id:'taser',name:'Taser',rarity:'UNCOMMON',tags:'Support, Elemental',fireMs:360,pierce:[1,1,1,2],slowRadius:true,elemental:true,desc:'Shock shots create slowing zones.'},
+  {id:'wand',name:'Wand',rarity:'COMMON',tags:'Elemental',fireMs:380,pierce:[0,0,1,1],burn:true,elemental:true,desc:'Elemental bolts that burn.'},
+];
+
+const RC={COMMON:'#aaaaaa',UNCOMMON:'#44ee88',RARE:'#44aaff',EPIC:'#cc44ff',LEGENDARY:'#ffcc00'};
+
+function buildStatTierUpgrades(){
+  const out=[];
+  STAT_LINES.forEach(st=>{
+    st.vals.forEach((v,i)=>{
+      out.push({
+        icon:'⬆',r:i<2?'COMMON':(i===2?'RARE':'EPIC'),name:`${st.label} ${['I','II','III','IV'][i]}`,
+        desc:`${st.icon}: +${v}`,
+        fn:()=>{st.apply(v);S.statTier[st.key]=(S.statTier[st.key]||0)+1;},
+        prereq:()=>((S.statTier[st.key]||0)===i),
+      });
+    });
+  });
+  return out;
+}
+
+function buildGunUpgrades(){
+  return GUNS.map(g=>({
+    icon:'🔫',r:g.rarity,weapon:true,name:g.name,desc:g.desc,
+    fn:()=>{
+      const has=S.loadout.includes(g.id);
+      if(!has&&S.loadout.length>=6){G_NOTIFY={t:'LOADOUT FULL (MAX 6 WEAPONS)',c:'#ff7744'};return;}
+      if(!has)S.loadout.push(g.id);
+      S.currentGun=g.id;
+      S.gunLevels[g.id]=Math.min(4,(S.gunLevels[g.id]||1)+1);
+    },
+  }));
+}
+
+const LEGACY_UPGRADES=[
+  {icon:'✨',r:'EPIC',name:'Double XP',desc:'Every gem grants 2x experience.',fn:()=>{S.xpMult*=2;}},
+  {icon:'🌀',r:'UNCOMMON',name:'Wider Vacuum',desc:'Attract gems from further away.',fn:()=>{S.vacRad+=100;}},
+  {icon:'🚀',r:'UNCOMMON',name:'+40% Bullet Spd',desc:'Faster shots, harder to dodge.',fn:()=>{S.bSpd=Math.floor(S.bSpd*1.4);}},
+  {icon:'🔱',r:'EPIC',name:'Split Shot +2',desc:'Two extra bullets per volley.',fn:()=>{S.bCount=Math.min(S.bCount+2,7);}},
+  {icon:'💊',r:'UNCOMMON',name:'Full Heal',desc:'Restore every hit point.',fn:()=>{S.hp=S.maxHp;}},
+  {icon:'❄️',r:'RARE',name:'Chill Aura',desc:'Enemies within 180px move 30% slower.',fn:()=>{S.chillAura=true;}},
+  {icon:'💀',r:'EPIC',name:'Death Explosion',desc:'Enemies explode on death dealing AoE dmg.',fn:()=>{S.deathExp=true;}},
+  {icon:'🩸',r:'RARE',name:'Vampiric I',desc:'+0.5 HP per kill.',fn:()=>{S.vampHeal=0.5;},prereq:()=>S.vampHeal===0},
+  {icon:'🩸',r:'RARE',name:'Vampiric II',desc:'Upgrade: +1 HP per kill.',fn:()=>{S.vampHeal=1.0;},prereq:()=>S.vampHeal===0.5},
+  {icon:'🩸',r:'EPIC',name:'Vampiric III',desc:'Upgrade: +1.5 HP per kill.',fn:()=>{S.vampHeal=1.5;},prereq:()=>S.vampHeal===1.0},
+  {icon:'🩸',r:'LEGENDARY',name:'Vampiric IV',desc:'Upgrade: +2 HP per kill.',fn:()=>{S.vampHeal=2.0;},prereq:()=>S.vampHeal===1.5},
+  {icon:'🌀',r:'LEGENDARY',name:'Void Curvature',desc:'Bullets curve toward nearest enemy.',fn:()=>{S.curvedBullets=true;G_NOTIFY={t:'VOID CURVATURE ACTIVE',c:'#aa66ff'};}},
+  {icon:'🔮',r:'EPIC',weapon:true,name:'Orbital Orb I',desc:'A damage orb circles you hitting all contacts.',fn:()=>{S.orbLevel=1;},prereq:()=>S.orbLevel===0},
+  {icon:'🔮',r:'RARE',weapon:true,name:'Orbital Orb II',desc:'Second orb joins the orbit.',fn:()=>{S.orbLevel=2;},prereq:()=>S.orbLevel===1},
+  {icon:'🔮',r:'EPIC',weapon:true,name:'Orbital Orb III',desc:'Three-orb spinning ring of death.',fn:()=>{S.orbLevel=3;},prereq:()=>S.orbLevel===2},
+  {icon:'💫',r:'EPIC',weapon:true,name:'Nova Pulse I',desc:'Every 3.5s fire 8 bullets outward.',fn:()=>{S.novaLevel=1;},prereq:()=>S.novaLevel===0},
+  {icon:'💫',r:'RARE',weapon:true,name:'Nova Pulse II',desc:'16-direction burst, fires faster.',fn:()=>{S.novaLevel=2;},prereq:()=>S.novaLevel===1},
+  {icon:'🚀',r:'EPIC',weapon:true,name:'Homing Missile I',desc:'1 tracking missile every 3s. AoE hit.',fn:()=>{S.missileLevel=1;},prereq:()=>S.missileLevel===0},
+  {icon:'🚀',r:'RARE',weapon:true,name:'Homing Missile II',desc:'2 missiles. Harder hitting.',fn:()=>{S.missileLevel=2;S.missileDmg+=30;},prereq:()=>S.missileLevel===1},
+  {icon:'⚡',r:'EPIC',weapon:true,name:'Chain Lightning I',desc:'Strike nearest enemy with chain every 2s.',fn:()=>{S.chainLevel=1;},prereq:()=>S.chainLevel===0},
+  {icon:'⚡',r:'RARE',weapon:true,name:'Chain Lightning II',desc:'Chain jumps to 3 more enemies.',fn:()=>{S.chainLevel=2;S.chainDmg+=25;},prereq:()=>S.chainLevel===1},
+  {icon:'💢',r:'EPIC',weapon:true,name:'Void Shotgun I',desc:'Every 2s fire a burst of 7 pellets.',fn:()=>{S.shotgunLevel=1;},prereq:()=>S.shotgunLevel===0},
+  {icon:'💢',r:'RARE',weapon:true,name:'Void Shotgun II',desc:'10 pellets, faster reload.',fn:()=>{S.shotgunLevel=2;S.shotgunDmg+=15;},prereq:()=>S.shotgunLevel===1},
+];
+
+const UPGRADES=[...buildStatTierUpgrades(),...buildGunUpgrades(),...LEGACY_UPGRADES];
 
 /* Spawn curve: very few early, swarm late */
 function waveSize(){const lv=S.level;return Math.max(1,Math.round(0.055*lv*lv+0.2*lv+0.75));}
@@ -249,52 +414,6 @@ function pickType(){
   return ENEMY_TYPES[0];
 }
 
-const RC={COMMON:'#aaaaaa',UNCOMMON:'#44ee88',RARE:'#44aaff',EPIC:'#cc44ff',LEGENDARY:'#ffcc00'};
-const UPGRADES=[
-  {icon:'🔫',r:'COMMON',   name:'+25% Fire Rate',   desc:'Fire considerably faster.',                         fn:()=>{S.fireMs=Math.max(140,Math.floor(S.fireMs*.75));}},
-  {icon:'🗡️',r:'RARE',     name:'+1 Pierce',        desc:'Bullets pierce one extra enemy.',                   fn:()=>{S.pierce+=1;}},
-  {icon:'✨',r:'EPIC',     name:'Double XP',        desc:'Every gem grants 2x experience.',                   fn:()=>{S.xpMult*=2;}},
-  {icon:'💥',r:'COMMON',   name:'+35 Damage',       desc:'All attacks hit harder.',                           fn:()=>{S.dmg+=35;}},
-  {icon:'❤️',r:'COMMON',   name:'+70 Max HP',       desc:'Expand your health pool.',                          fn:()=>{S.maxHp+=70;S.hp=Math.min(S.hp+70,S.maxHp);}},
-  {icon:'⚡',r:'UNCOMMON', name:'+30% Move Speed',  desc:'Glide faster through the void.',                    fn:()=>{S.spd=Math.floor(S.spd*1.3);}},
-  {icon:'🌀',r:'UNCOMMON', name:'Wider Vacuum',     desc:'Attract gems from further away.',                   fn:()=>{S.vacRad+=100;}},
-  {icon:'🚀',r:'UNCOMMON', name:'+40% Bullet Spd',  desc:'Faster shots, harder to dodge.',                    fn:()=>{S.bSpd=Math.floor(S.bSpd*1.4);}},
-  {icon:'🩹',r:'COMMON',   name:'Restore 60 HP',    desc:'Heal right now.',                                   fn:()=>{S.hp=Math.min(S.hp+60,S.maxHp);}},
-  {icon:'🔱',r:'EPIC',     name:'Split Shot +2',    desc:'Two extra bullets per volley.',                     fn:()=>{S.bCount=Math.min(S.bCount+2,7);}},
-  {icon:'💊',r:'UNCOMMON', name:'Full Heal',        desc:'Restore every hit point.',                          fn:()=>{S.hp=S.maxHp;}},
-  {icon:'🎯',r:'RARE',     name:'+50 Damage',       desc:'Devastate everything.',                             fn:()=>{S.dmg+=50;}},
-  {icon:'🏃',r:'RARE',     name:'+40% Move Speed',  desc:'Become a blur.',                                    fn:()=>{S.spd=Math.floor(S.spd*1.4);}},
-  {icon:'🔥',r:'EPIC',     name:'+3 Pierce',        desc:'Bullets become lances of ruin.',                    fn:()=>{S.pierce+=3;}},
-  {icon:'⚔️',r:'RARE',     name:'+60 Damage',       desc:'A serious power spike.',                            fn:()=>{S.dmg+=60;}},
-  {icon:'💪',r:'UNCOMMON', name:'+100 Max HP',      desc:'A massive health boost.',                           fn:()=>{S.maxHp+=100;S.hp=Math.min(S.hp+100,S.maxHp);}},
-  {icon:'❄️',r:'RARE',     name:'Chill Aura',       desc:'Enemies within 180px move 30% slower.',            fn:()=>{S.chillAura=true;}},
-  {icon:'💀',r:'EPIC',     name:'Death Explosion',  desc:'Enemies explode on death dealing AoE dmg.',        fn:()=>{S.deathExp=true;}},
-  {icon:'🩸',r:'RARE',     name:'Vampiric I',       desc:'+0.5 HP per kill.',                                fn:()=>{S.vampHeal=0.5;},prereq:()=>S.vampHeal===0},
-  {icon:'🩸',r:'RARE',     name:'Vampiric II',      desc:'Upgrade: +1 HP per kill.',                         fn:()=>{S.vampHeal=1.0;},prereq:()=>S.vampHeal===0.5},
-  {icon:'🩸',r:'EPIC',     name:'Vampiric III',     desc:'Upgrade: +1.5 HP per kill.',                       fn:()=>{S.vampHeal=1.5;},prereq:()=>S.vampHeal===1.0},
-  {icon:'🩸',r:'LEGENDARY',name:'Vampiric IV',      desc:'Upgrade: +2 HP per kill.',                         fn:()=>{S.vampHeal=2.0;},prereq:()=>S.vampHeal===1.5},
-  {icon:'🌟',r:'LEGENDARY',name:'Void Blitz',       desc:'+25% fire rate AND +25 damage.',                   fn:()=>{S.fireMs=Math.max(140,Math.floor(S.fireMs*.75));S.dmg+=25;}},
-  {icon:'⚜️',r:'LEGENDARY',name:'Void Overload',    desc:'+3 pierce, +2 bullets, +30% speed.',               fn:()=>{S.pierce+=3;S.bCount=Math.min(S.bCount+2,7);S.spd=Math.floor(S.spd*1.3);}},
-  {icon:'🎰',r:'LEGENDARY',name:"Gambler's Roll",   desc:'55% jackpot (+90 dmg), 45% bad luck (-35 HP).',
-   fn:()=>{if(Math.random()<.55){S.dmg+=90;G_NOTIFY={t:'JACKPOT! +90 DMG',c:'#ffcc00'};}else{S.maxHp=Math.max(50,S.maxHp-35);S.hp=Math.min(S.hp,S.maxHp);G_NOTIFY={t:'BAD LUCK! -35 MAX HP',c:'#ff4444'};}}},
-  {icon:'🌀',r:'LEGENDARY',name:'Void Curvature',   desc:'Bullets curve toward nearest enemy.',              fn:()=>{S.curvedBullets=true;G_NOTIFY={t:'VOID CURVATURE ACTIVE',c:'#aa66ff'};}},
-  // Weapons
-  {icon:'🔮',r:'EPIC', weapon:true,name:'Orbital Orb I',     desc:'A damage orb circles you hitting all contacts.',fn:()=>{S.orbLevel=1;},prereq:()=>S.orbLevel===0},
-  {icon:'🔮',r:'RARE', weapon:true,name:'Orbital Orb II',    desc:'Second orb joins the orbit.',              fn:()=>{S.orbLevel=2;},prereq:()=>S.orbLevel===1},
-  {icon:'🔮',r:'EPIC', weapon:true,name:'Orbital Orb III',   desc:'Three-orb spinning ring of death.',        fn:()=>{S.orbLevel=3;},prereq:()=>S.orbLevel===2},
-  {icon:'🌙',r:'RARE', weapon:true,name:'Orb Power Up',      desc:'+20 orb dmg and wider orbit.',             fn:()=>{S.orbDmg+=20;S.orbRadius+=22;},prereq:()=>S.orbLevel>0},
-  {icon:'💫',r:'EPIC', weapon:true,name:'Nova Pulse I',      desc:'Every 3.5s fire 8 bullets outward.',       fn:()=>{S.novaLevel=1;},prereq:()=>S.novaLevel===0},
-  {icon:'💫',r:'RARE', weapon:true,name:'Nova Pulse II',     desc:'16-direction burst, fires faster.',        fn:()=>{S.novaLevel=2;},prereq:()=>S.novaLevel===1},
-  {icon:'🚀',r:'EPIC', weapon:true,name:'Homing Missile I',  desc:'1 tracking missile every 3s. AoE hit.',    fn:()=>{S.missileLevel=1;},prereq:()=>S.missileLevel===0},
-  {icon:'🚀',r:'RARE', weapon:true,name:'Homing Missile II', desc:'2 missiles. Harder hitting.',              fn:()=>{S.missileLevel=2;S.missileDmg+=30;},prereq:()=>S.missileLevel===1},
-  {icon:'🚀',r:'EPIC', weapon:true,name:'Missile Barrage',   desc:'3 missiles. Devastating.',                 fn:()=>{S.missileLevel=3;S.missileDmg+=40;},prereq:()=>S.missileLevel===2},
-  {icon:'⚡',r:'EPIC', weapon:true,name:'Chain Lightning I', desc:'Strike nearest enemy with chain every 2s.',fn:()=>{S.chainLevel=1;},prereq:()=>S.chainLevel===0},
-  {icon:'⚡',r:'RARE', weapon:true,name:'Chain Lightning II',desc:'Chain jumps to 3 more enemies.',           fn:()=>{S.chainLevel=2;S.chainDmg+=25;},prereq:()=>S.chainLevel===1},
-  {icon:'⚡',r:'EPIC', weapon:true,name:'Lightning Storm',   desc:'Chain jumps 6 times. Electrifies all.',   fn:()=>{S.chainLevel=3;S.chainDmg+=35;},prereq:()=>S.chainLevel===2},
-  {icon:'💢',r:'EPIC', weapon:true,name:'Void Shotgun I',    desc:'Every 2s fire a burst of 7 pellets.',      fn:()=>{S.shotgunLevel=1;},prereq:()=>S.shotgunLevel===0},
-  {icon:'💢',r:'RARE', weapon:true,name:'Void Shotgun II',   desc:'10 pellets, faster reload.',               fn:()=>{S.shotgunLevel=2;S.shotgunDmg+=15;},prereq:()=>S.shotgunLevel===1},
-  {icon:'💢',r:'EPIC', weapon:true,name:'Shotgun Carnage',   desc:'13 wide-spread pellets. Room-clearing.',  fn:()=>{S.shotgunLevel=3;S.shotgunDmg+=20;},prereq:()=>S.shotgunLevel===2},
-];
 
 class MenuScene extends Phaser.Scene{
   constructor(){super({key:'MenuScene'});}
@@ -342,11 +461,19 @@ class GameScene extends Phaser.Scene{
 
   create(){
     Object.assign(S,DEFAULTS);
+    S.statTier={};
+    S.loadout=['pistol'];
+    S.currentGun='pistol';
+    S.gunLevels={pistol:1};
+    S.upgradesPicked=[];
     this.gamePaused=false;this._manualPause=false;this.iframes=false;
     this.startTime=this.time.now;this._prevKills=-1;this._vampAccum=0;
+    this._regenTick=0;this._gunKills=0;
     this.orbitAngle=0;this.orbVisuals=[];
     this.novaTimer=null;this.missileTimer=null;this.chainTimer=null;this.shotgunTimer=null;this.spawnTimer=null;
+    this.gunTimers={};this.gunShotCounter={};
     this.activeBoss=null;
+    this.gunMap=Object.fromEntries(GUNS.map(g=>[g.id,g]));
 
     this.physics.world.setBounds(0,0,WW,WH);
     this.cameras.main.setBounds(0,0,WW,WH);
@@ -374,8 +501,8 @@ class GameScene extends Phaser.Scene{
     this.physics.add.overlap(this.pellets,this.enemies,this._onBulletHit,null,this);
     this.physics.add.overlap(this.missiles,this.enemies,this._onMissileHit,null,this);
 
-    this.fireTimer=this._mkTimer(S.fireMs,this._fire);
     this.spawnTimer=this._mkTimer(spawnInterval(),this._spawnWave);
+    this._syncGunTimers();
 
     const pb=document.getElementById('pause-btn');
     pb.style.display='block';
@@ -388,7 +515,7 @@ class GameScene extends Phaser.Scene{
   }
 
   _mkTimer(ms,cb){return this.time.addEvent({delay:ms,callback:cb,callbackScope:this,loop:true});}
-  _allTimers(){return[this.fireTimer,this.spawnTimer,this.novaTimer,this.missileTimer,this.chainTimer,this.shotgunTimer];}
+  _allTimers(){return[this.spawnTimer,this.novaTimer,this.missileTimer,this.chainTimer,this.shotgunTimer,...Object.values(this.gunTimers||{})];}
 
   _togglePause(){
     if(this.gamePaused&&!this._manualPause)return;
@@ -417,27 +544,105 @@ class GameScene extends Phaser.Scene{
     }
   }
 
-  _fire(){
+  _curGun(){return this.gunMap[S.currentGun]||this.gunMap.pistol;}
+  _gunTier(g){return Math.max(1,Math.min(4,S.gunLevels[g.id]||1));}
+
+  _baseGunDelay(g){
+    const speedMult=Math.max(.35,1-(S.attackSpeed/100));
+    return Math.max(70,Math.floor(g.fireMs*speedMult));
+  }
+
+  _syncGunTimers(){
+    const active=new Set(S.loadout);
+    Object.keys(this.gunTimers||{}).forEach(id=>{
+      if(!active.has(id)){this.gunTimers[id].remove(false);delete this.gunTimers[id];}
+    });
+    S.loadout.forEach(id=>{
+      if(this.gunTimers[id])return;
+      const g=this.gunMap[id];
+      if(!g)return;
+      this.gunShotCounter[id]=this.gunShotCounter[id]||0;
+      this.gunTimers[id]=this._mkTimer(this._baseGunDelay(g),()=>this._fireWeapon(id));
+    });
+  }
+
+  _projectileDamageBase(g,isElemental,isMelee){
+    const fixed=typeof g.fixedDamage==='number'?g.fixedDamage:S.dmg;
+    const typeBonus=isMelee?S.meleeDmg:(isElemental?S.elementalDmg:S.rangedDmg);
+    return fixed+typeBonus;
+  }
+
+  _applyGunCooldown(g,gunId){
+    let next=this._baseGunDelay(g);
+    const tier=this._gunTier(g);
+    const shots=this.gunShotCounter[gunId]||0;
+    if(g.longCooldownEvery){const n=g.longCooldownEvery[tier-1]||g.longCooldownEvery[0];if(n&&shots%n===0)next=Math.floor(next*1.7);}
+    if(g.chainCooldownEvery100&&shots%100===0)next=g.chainCooldownEvery100;
+    const t=this.gunTimers&&this.gunTimers[gunId];
+    if(t)t.reset({delay:next,callback:()=>this._fireWeapon(gunId),callbackScope:this,loop:true});
+  }
+
+  _spawnGunBullet(px,py,angle,g,opts={}){
+    const b=this.bullets.getFirstDead(true,px,py,'bullet');
+    if(!b)return;
+    const tier=this._gunTier(g);
+    b.setPosition(px,py).setActive(true).setVisible(true).setDepth(7).setRotation(angle);
+    b.body.enable=true;b.body.reset(px,py);
+    b.hitSet=new Set();
+    b.curved=S.curvedBullets||!!opts.curved;
+    b.isPellet=!!opts.isPellet;
+    b.gunId=g.id;
+    b.gunTier=tier;
+    b.baseDmg=this._projectileDamageBase(g,!!g.elemental,false)+(opts.dmgBonus||0);
+    b.pierceLeft=(opts.pierceOverride!=null?opts.pierceOverride:((g.pierce&&g.pierce[tier-1])||0))+S.pierce;
+    b.hitCount=0;
+    b.falloff=(g.falloff==null?1:g.falloff);
+    b.explosive=!!g.explosive;
+    b.bigExplosion=!!g.bigExplosion;
+    b.burn=!!g.burn;
+    b.elemental=!!g.elemental;
+    b.bounces=((g.bounce&&g.bounce[tier-1])||0);
+    b.noBounce=!!g.noBounce;
+    b.spawnOnHit=(g.spawnOnHit&&g.spawnOnHit[tier-1])||0;
+    b.slowRadius=!!g.slowRadius;
+    b.healOnHit=g.healOnHit||0;
+    b.charmChance=(g.charmChance&&g.charmChance[tier-1])||0;
+    b.charmThreshold=(g.charmThreshold&&g.charmThreshold[tier-1])||0;
+    b.critBounce=(g.critBounce&&g.critBounce[tier-1])||0;
+    b.engineeringSlow=!!g.engSlow;
+    b.rangeScale=1+S.range/100;
+    const spd=(S.bSpd*(opts.speedMul||1))*b.rangeScale;
+    this.physics.velocityFromAngle(Phaser.Math.RadToDeg(angle),spd,b.body.velocity);
+  }
+
+  _fireWeapon(gunId){
     if(this.gamePaused)return;
     const live=this.enemies.getChildren().filter(e=>e.active);
     if(!live.length)return;
+    const g=this.gunMap[gunId];
+    if(!g)return;
     const px=this.player.x,py=this.player.y;
     let nearest=null,nd=Infinity;
     live.forEach(e=>{const d=Phaser.Math.Distance.Between(px,py,e.x,e.y);if(d<nd){nd=d;nearest=e;}});
     if(!nearest)return;
+    this.gunShotCounter[gunId]=(this.gunShotCounter[gunId]||0)+1;
     const base=Phaser.Math.Angle.Between(px,py,nearest.x,nearest.y);
-    const cnt=S.bCount,sprd=cnt>1?.22:0;
-    for(let i=0;i<cnt;i++){
-      const angle=base+(cnt===1?0:(i-(cnt-1)/2)*sprd);
-      const b=this.bullets.getFirstDead(true,px,py,'bullet');
-      if(!b)continue;
-      b.setPosition(px,py).setActive(true).setVisible(true).setDepth(7).setRotation(angle);
-      b.body.enable=true;b.body.reset(px,py);
-      b.pierceLeft=S.pierce;b.hitSet=new Set();b.curved=S.curvedBullets;b.isPellet=false;
-      this.physics.velocityFromAngle(Phaser.Math.RadToDeg(angle),S.bSpd,b.body.velocity);
+    const tier=this._gunTier(g);
+    const pelletCount=(g.pellets||1)+(S.bCount-1);
+    const spread=pelletCount>1?.15+.03*pelletCount:0;
+    const forcedCritEvery=(g.forcedCritEvery&&g.forcedCritEvery[tier-1])||0;
+    const shots=this.gunShotCounter[gunId];
+    const forceCrit=forcedCritEvery>0&&shots%forcedCritEvery===0;
+    for(let i=0;i<pelletCount;i++){
+      const angle=base+(pelletCount===1?0:(i-(pelletCount-1)/2)*spread);
+      this._spawnGunBullet(px,py,angle,g,{isPellet:g.pellets>1,dmgBonus:forceCrit?S.dmg:0,speedMul:g.pellets?0.72:1});
     }
+    if(g.id==='potato')S.vacRad=Math.min(520,S.vacRad+(g.vacBoost||0));
+    this._applyGunCooldown(g,gunId);
     SFX.shoot();
   }
+
+  _fire(){this._fireWeapon(S.currentGun);}
 
   _spawnWave(){
     if(this.gamePaused)return;
@@ -510,14 +715,36 @@ class GameScene extends Phaser.Scene{
   _onBulletHit(bullet,enemy){
     if(this.gamePaused)return;if(!bullet.active)return;if(!enemy.active)return;
     if(!bullet.hitSet)return;if(bullet.hitSet.has(enemy))return;
-    bullet.hitSet.add(enemy);bullet.pierceLeft--;
-    if(bullet.pierceLeft<=0)this._retireProj(bullet);
-    const dmg=S.dmg+(bullet.isPellet?S.shotgunDmg:0);
+    bullet.hitSet.add(enemy);
+    const hitIndex=bullet.hitCount||0;
+    const crit=Math.random()<Math.min(.75,S.critChance/100);
+    let dmg=(bullet.baseDmg||S.dmg)*Math.pow(bullet.falloff==null?1:bullet.falloff,hitIndex);
+    if(bullet.isPellet)dmg+=S.shotgunDmg;
+    if(crit)dmg*=2;
+    if(S.frenzyActive)dmg*=1.15;
+    dmg=Math.max(1,Math.floor(dmg));
     enemy.hp-=dmg;
+    bullet.hitCount=(bullet.hitCount||0)+1;
+    bullet.pierceLeft--;
     enemy.setTint(0xffffff);this.time.delayedCall(65,()=>{if(enemy.active)enemy.clearTint();});
-    this._dmgPop(enemy.x,enemy.y-12,dmg);SFX.hit();
+    this._dmgPop(enemy.x,enemy.y-12,dmg,crit?'#ffd166':'#ffffaa');SFX.hit();
+    if(S.lifeSteal>0){S.hp=Math.min(S.maxHp,S.hp+Math.max(0.2,dmg*(S.lifeSteal*.003)));}
+    if(bullet.healOnHit){S.hp=Math.min(S.maxHp,S.hp+bullet.healOnHit);}
+    if(bullet.burn){enemy.burnUntil=this.time.now+2600;enemy.burnTick=this.time.now+300;enemy.burnDmg=Math.max(1,Math.floor((S.elementalDmg+S.dmg*.2)*.2));}
+    if(bullet.slowRadius)this._applyAreaSlow(enemy.x,enemy.y,120,.75,2200);
+    if(bullet.engineeringSlow){const slow=Math.max(.5,1-(S.engineering*0.01));this._applyAreaSlow(enemy.x,enemy.y,95,slow,1600);}
+    if(bullet.charmChance&&enemy.hp<enemy.maxHp*bullet.charmThreshold&&Math.random()<bullet.charmChance)enemy.charmedUntil=this.time.now+8000;
+    const bGun=this.gunMap[bullet.gunId]||this._curGun();
+    if(bullet.explosive||Math.random()<((bGun.explodeChance&&bGun.explodeChance[(bullet.gunTier||1)-1])||0))this._explodeAt(enemy.x,enemy.y,bullet.bigExplosion?120:76,bullet.bigExplosion?Math.floor(S.dmg*2.2):Math.floor(S.dmg*.9));
+    if(bullet.spawnOnHit>0)this._spawnShards(enemy.x,enemy.y,bullet.spawnOnHit,enemy);
+    if(crit&&bullet.critBounce>0){bullet.bounces=Math.max(bullet.bounces||0,bullet.critBounce);}
+    if(bullet.pierceLeft<=0){
+      if((bullet.bounces||0)>0&&!bullet.noBounce&&this._bounceProjectile(bullet,enemy)){bullet.bounces--;bullet.pierceLeft=1;bullet.hitSet=new Set([enemy]);}
+      else this._retireProj(bullet);
+    }
     if(enemy._isBoss)this._updateBossBar();
     if(enemy.hp<=0)this._killEnemy(enemy);
+    this._updateHUD();
   }
 
   _onMissileHit(missile,enemy){
@@ -535,6 +762,62 @@ class GameScene extends Phaser.Scene{
     });SFX.hit();
   }
 
+  _explodeAt(x,y,radius,damage){
+    const ring=this.add.circle(x,y,10,0xff8833,.3).setDepth(8);
+    this.tweens.add({targets:ring,scaleX:radius/10,scaleY:radius/10,alpha:0,duration:300,ease:'Quad.out',onComplete:()=>ring.destroy()});
+    this.enemies.getChildren().forEach(e=>{
+      if(!e.active)return;
+      if(Phaser.Math.Distance.Between(x,y,e.x,e.y)<=radius){
+        e.hp-=damage;this._dmgPop(e.x,e.y-10,damage,'#ff9966');
+        if(e._isBoss)this._updateBossBar();
+        if(e.hp<=0)this._killEnemy(e);
+      }
+    });
+  }
+
+  _applyAreaSlow(x,y,radius,mult,dur){
+    this.enemies.getChildren().forEach(e=>{
+      if(!e.active)return;
+      if(Phaser.Math.Distance.Between(x,y,e.x,e.y)<=radius){
+        e.slowMult=Math.min(e.slowMult||1,mult);
+        e.slowUntil=Math.max(e.slowUntil||0,this.time.now+dur);
+      }
+    });
+  }
+
+  _bounceProjectile(bullet,enemy){
+    let target=null,nd=Infinity;
+    this.enemies.getChildren().forEach(e=>{
+      if(!e.active||e===enemy)return;
+      if(bullet.hitSet&&bullet.hitSet.has(e))return;
+      const d=Phaser.Math.Distance.Between(bullet.x,bullet.y,e.x,e.y);
+      if(d<220&&d<nd){nd=d;target=e;}
+    });
+    if(!target)return false;
+    const a=Phaser.Math.Angle.Between(bullet.x,bullet.y,target.x,target.y);
+    const sp=Math.hypot(bullet.body.velocity.x,bullet.body.velocity.y)||S.bSpd;
+    bullet.body.setVelocity(Math.cos(a)*sp,Math.sin(a)*sp);
+    bullet.setRotation(a);
+    return true;
+  }
+
+  _spawnShards(x,y,count,sourceEnemy){
+    const targets=this.enemies.getChildren().filter(e=>e.active&&e!==sourceEnemy);
+    if(!targets.length)return;
+    for(let i=0;i<count;i++){
+      const t=targets[i%targets.length];
+      const a=Phaser.Math.Angle.Between(x,y,t.x,t.y);
+      const b=this.bullets.getFirstDead(true,x,y,'bullet');
+      if(!b)continue;
+      b.setPosition(x,y).setActive(true).setVisible(true).setDepth(7).setRotation(a);
+      b.body.enable=true;b.body.reset(x,y);
+      b.hitSet=new Set();b.curved=false;b.isPellet=false;
+      b.baseDmg=Math.floor(S.dmg*.45);b.falloff=1;b.pierceLeft=0;b.hitCount=0;b.bounces=0;b.noBounce=true;
+      b.explosive=false;b.bigExplosion=false;b.burn=false;b.elemental=false;b.spawnOnHit=0;b.slowRadius=false;b.healOnHit=0;
+      this.physics.velocityFromAngle(Phaser.Math.RadToDeg(a),S.bSpd*.9,b.body.velocity);
+    }
+  }
+
   _retireProj(p){
     if(!p)return;p.setActive(false).setVisible(false);
     if(p.body){p.body.enable=false;p.body.setVelocity(0,0);}
@@ -546,6 +829,11 @@ class GameScene extends Phaser.Scene{
     if(!enemy.active)return;
     const ex=enemy.x,ey=enemy.y,type=enemy.etype||ENEMY_TYPES[0];
     S.kills++;
+    if(S.loadout.includes('ghost_scepter')){
+      this._gunKills++;
+      const gun=this.gunMap.ghost_scepter,tier=this._gunTier(gun),req=(gun.ghostHpReq&&gun.ghostHpReq[tier-1])||20;
+      if(this._gunKills>=req){this._gunKills=0;S.maxHp+=1;S.hp=Math.min(S.maxHp,S.hp+1);this._notify('+1 MAX HP (GHOST SCEPTER)','#ddaaff');}
+    }
     if(enemy._isBoss){document.getElementById('boss-bar-wrap').style.display='none';this.activeBoss=null;SFX.bossdie();}
     enemy.setActive(false).setVisible(false);enemy.body.enable=false;enemy.body.setVelocity(0,0);enemy.setPosition(-9999,-9999);
     try{if(enemy.preFX)enemy.preFX.clear();}catch(e){}
@@ -571,7 +859,7 @@ class GameScene extends Phaser.Scene{
     else{for(let i=0;i<drops;i++)this._dropGem(ex+Phaser.Math.Between(-14,14),ey+Phaser.Math.Between(-14,14),'gem',S.xpMult,0xffcc00);}
     // Item drops — nerfed, floor at 0.8% late game
     if(!isBoss&&!enemy._mini){
-      const chance=Math.max(0.008,0.075-S.level*0.0028)+(type.key==='e_brute'?0.04:(type.key==='e_sentinel'?0.015:0));
+      const chance=Math.max(0.008,0.075-S.level*0.0028)+(type.key==='e_brute'?0.04:(type.key==='e_sentinel'?0.015:0))+S.luck*.001;
       if(Math.random()<chance){
         const r=Math.random(),key=r<.4?'drop_magnet':r<.7?'drop_shield':'drop_frenzy';
         const it=this.drops.getFirstDead(true,ex,ey,key);
@@ -604,6 +892,10 @@ class GameScene extends Phaser.Scene{
     it.setActive(false).setVisible(false);it.body.enable=false;it.body.setVelocity(0,0);it.setPosition(-9999,-9999);
     try{if(it.preFX)it.preFX.clear();}catch(e){}
     SFX.item();
+    S.loadout.forEach(id=>{
+      const gun=this.gunMap[id],timer=this.gunTimers&&this.gunTimers[id];
+      if(gun&&gun.resetOnMaterial&&timer)timer.reset({delay:40,callback:()=>this._fireWeapon(id),callbackScope:this,loop:true});
+    });
     switch(it.dropType){
       case 'drop_magnet':SFX.magnet();this.gems.getChildren().forEach(gem=>{if(gem.active)this._collectGem(gem);});this._notify('\uD83E\uDDF2 MAGNET! ALL GEMS COLLECTED','#00ccff');break;
       case 'drop_shield':S.shielded=true;this.shieldCircle.setVisible(true);this._notify('\uD83D\uDEE1\uFE0F SHIELD \u2014 NEXT HIT BLOCKED','#4488ff');break;
@@ -616,12 +908,14 @@ class GameScene extends Phaser.Scene{
 
   _playerTakeDamage(dmg){
     if(this.iframes)return;
+    if(Math.random()<Math.min(.6,S.dodge/100)){this._notify('DODGE','#88ffaa');return;}
     if(S.shielded){S.shielded=false;this.shieldCircle.setVisible(false);SFX.shield();this._notify('\uD83D\uDEE1\uFE0F SHIELD BLOCKED!','#4488ff');this.cameras.main.shake(70,.005);this.iframes=true;this.time.delayedCall(500,()=>{this.iframes=false;});return;}
-    S.hp=Math.max(0,S.hp-dmg);this._updateHUD();
+    const reduced=Math.max(1,Math.floor(dmg-Math.floor(S.armor*.8)));
+    S.hp=Math.max(0,S.hp-reduced);this._updateHUD();
     this.cameras.main.shake(160,.011);
     this.iframes=true;this.time.delayedCall(750,()=>{this.iframes=false;});
     this.tweens.add({targets:this.player,alpha:.18,duration:70,yoyo:true,repeat:4,onComplete:()=>this.player.setAlpha(1)});
-    this._dmgPop(this.player.x,this.player.y-22,dmg,'#ff4455');
+    this._dmgPop(this.player.x,this.player.y-22,reduced,'#ff4455');
     if(S.hp<=0)this._gameOver();
   }
 
@@ -672,6 +966,7 @@ class GameScene extends Phaser.Scene{
   }
 
   _syncWeapons(){
+    this._syncGunTimers();
     while(this.orbVisuals.length<S.orbLevel){const orb=this.add.circle(0,0,10,0x8822ff).setDepth(9);try{if(orb.preFX)orb.preFX.addGlow(0xaa55ff,8,0,false,.1,8);}catch(e){}this.orbVisuals.push({obj:orb,hits:new Map()});}
     while(this.orbVisuals.length>S.orbLevel){this.orbVisuals.pop().obj.destroy();}
     if(S.novaLevel>0){if(this.novaTimer)this.novaTimer.remove(false);this.novaTimer=this._mkTimer(3600-(S.novaLevel-1)*600,this._fireNova);}
@@ -732,7 +1027,7 @@ class GameScene extends Phaser.Scene{
       const col=RC[upg.r]||'#aaa';
       const card=document.createElement('div');card.className='ucard'+(upg.weapon?' weapon-card':'');
       card.innerHTML='<div class="ucard-icon">'+upg.icon+'</div><div class="ucard-name">'+upg.name+'</div><div class="ucard-desc">'+upg.desc+'</div><div class="ucard-rarity" style="color:'+col+';border-color:'+col+'66">'+upg.r+(upg.weapon?' WPN':'')+'</div>';
-      card.addEventListener('click',()=>{upg.fn();this._resumePlay();},{once:true});
+      card.addEventListener('click',()=>{upg.fn();S.upgradesPicked.unshift(upg.name);if(S.upgradesPicked.length>24)S.upgradesPicked.length=24;this._resumePlay();},{once:true});
       row.appendChild(card);
     });
     frame.appendChild(row);body.appendChild(frame);
@@ -743,7 +1038,6 @@ class GameScene extends Phaser.Scene{
     document.getElementById('lvl-ov').classList.remove('visible');
     if(G_NOTIFY){this._notify(G_NOTIFY.t,G_NOTIFY.c);G_NOTIFY=null;}
     this._syncWeapons();
-    this.fireTimer.remove(false);this.fireTimer=this._mkTimer(S.fireMs,this._fire);
     this._allTimers().forEach(t=>{if(t)t.paused=false;});
     this.physics.resume();this.gamePaused=false;this._updateHUD();
   }
@@ -773,7 +1067,9 @@ class GameScene extends Phaser.Scene{
     document.getElementById('h-lv').textContent='LVL '+S.level;
     document.getElementById('h-kills').textContent='\u2620 '+S.kills+' kills';
     document.getElementById('h-dmg').textContent='DMG '+S.dmg;
+    const cg=this._curGun(),tier=this._gunTier(cg);
     let wh='';
+    wh+='<span class="wpn-badge">PRIMARY '+cg.name.toUpperCase()+' T'+tier+'</span>';
     if(S.orbLevel>0)     wh+='<span class="wpn-badge">\uD83D\uDD2E ORB '+['\u2160','\u2161','\u2162'][S.orbLevel-1]+'</span>';
     if(S.novaLevel>0)    wh+='<span class="wpn-badge">\uD83D\uDCAB NOVA '+['\u2160','\u2161'][S.novaLevel-1]+'</span>';
     if(S.missileLevel>0) wh+='<span class="wpn-badge">\uD83D\uDE80 MSL '+['\u2160','\u2161','\u2162'][S.missileLevel-1]+'</span>';
@@ -788,6 +1084,37 @@ class GameScene extends Phaser.Scene{
     if(S.deathExp)      eh+='<span class="eff-badge" style="color:#ff8800;border-color:#ff880088">\uD83D\uDCA5 EXPLODE</span>';
     if(S.chillAura)     eh+='<span class="eff-badge" style="color:#88ddff;border-color:#88ddff88">\u2744\uFE0F CHILL</span>';
     document.getElementById('h-effects').innerHTML=eh;
+
+    const spStats=document.getElementById('sp-stats');
+    if(spStats){
+      const lines=[
+        ['HP',S.hp+'/'+S.maxHp],['DMG',S.dmg],['Armor',S.armor],['Dodge',S.dodge+'%'],
+        ['Regen',S.hpRegen],['Life Steal',S.lifeSteal],['Atk Spd',S.attackSpeed+'%'],['Crit',S.critChance+'%'],
+        ['Range',S.range],['Speed',S.spd],['Luck',S.luck],['Engineering',S.engineering],
+      ];
+      spStats.innerHTML=lines.map(x=>'<div class="sp-stat"><span>'+x[0]+'</span><b>'+x[1]+'</b></div>').join('');
+    }
+    const spEffects=document.getElementById('sp-effects');
+    if(spEffects){
+      const effects=[];
+      if(S.shielded)effects.push('Shielded');
+      if(S.frenzyActive)effects.push('Frenzy');
+      if(S.curvedBullets)effects.push('Curved Bullets');
+      if(S.chillAura)effects.push('Chill Aura');
+      if(S.deathExp)effects.push('Death Explosion');
+      if(S.vampHeal>0)effects.push('Vampiric '+S.vampHeal);
+      spEffects.innerHTML=effects.length?effects.map(e=>'<span class="sp-pill">'+e+'</span>').join(''):'<span class="sp-pill">No active effects</span>';
+    }
+    const spGun=document.getElementById('sp-gun');
+    if(spGun)spGun.innerHTML='<span class="sp-pill">'+cg.name+'</span><span class="sp-pill">Tier '+tier+'</span><span class="sp-pill">'+cg.tags+'</span>';
+    const spWeapons=document.getElementById('sp-weapons');
+    if(spWeapons){
+      const load=S.loadout.map(id=>this.gunMap[id]).filter(Boolean);
+      spWeapons.innerHTML=load.map(g=>'<span class="sp-pill">'+g.name+' T'+(S.gunLevels[g.id]||1)+'</span>').join('')||'<span class="sp-pill">None</span>';
+      for(let i=load.length;i<6;i++)spWeapons.innerHTML+='<span class="sp-pill">[Empty Slot]</span>';
+    }
+    const spUp=document.getElementById('sp-upgrades');
+    if(spUp)spUp.innerHTML=(S.upgradesPicked||[]).map(u=>'<span class="sp-pill">'+u+'</span>').join('')||'<span class="sp-pill">No upgrades yet</span>';
   }
 
   update(time,delta){
@@ -806,12 +1133,18 @@ class GameScene extends Phaser.Scene{
     const baseSpd=62+S.level*3.5;
     this.enemies.getChildren().forEach(e=>{
       if(!e.active)return;
+      if(e.burnUntil&&time<e.burnUntil&&time>(e.burnTick||0)){e.burnTick=time+320;e.hp-=Math.max(1,e.burnDmg||1);this._dmgPop(e.x,e.y-10,e.burnDmg||1,'#ff7744');if(e._isBoss)this._updateBossBar();if(e.hp<=0){this._killEnemy(e);return;}}
+      if(e.slowUntil&&time>e.slowUntil){e.slowUntil=0;e.slowMult=1;}
       const dx=px-e.x,dy=py-e.y,dist=Math.hypot(dx,dy)||1;
       let spd=baseSpd*((e.etype&&e.etype.spdMult)||1);
       if(e._isBoss&&e._phase2)spd*=1.45;
       if(S.chillAura&&dist<180)spd*=.7;
+      if(e.slowUntil&&e.slowUntil>time)spd*=(e.slowMult||1);
       const sp=e.etype&&e.etype.special;
-      if(sp==='specter'||sp==='specter_boss'){
+      if(e.charmedUntil&&e.charmedUntil>time){
+        e.body.setVelocity((-dx/dist)*spd,(-dy/dist)*spd);
+        e.setTint(0xff66cc);
+      } else if(sp==='specter'||sp==='specter_boss'){
         const mag=sp==='specter_boss'?120:85;
         const wob=Math.sin(time*.003+e._phase)*mag;
         const ppx=-(dy/dist),ppy=(dx/dist);
@@ -824,10 +1157,11 @@ class GameScene extends Phaser.Scene{
         e.body.setVelocity((dx/dist)*spd,(dy/dist)*spd);
       }
       const hitR=(e.etype&&e.etype.w/2||11)+14;
-      if(dist<hitR&&!this.iframes){
+      if(dist<hitR&&!this.iframes&&!(e.charmedUntil&&e.charmedUntil>time)){
         if(sp==='vampire')e.hp=Math.min(e.maxHp,e.hp+8);
         this._playerTakeDamage((e.etype&&e.etype.dmg)||10);
       }
+      if(!(e.charmedUntil&&e.charmedUntil>time))e.clearTint();
     });
     // Gems
     const vr=S.vacRad,vr2=vr*vr;const toCollect=[];
@@ -905,6 +1239,7 @@ class GameScene extends Phaser.Scene{
     if(this._pGlow)this._pGlow.outerStrength=8+Math.sin(time*.0025)*5;
     // HUD time
     const secs=Math.floor((time-this.startTime)/1000);
+    if(S.hpRegen>0&&time-this._regenTick>1000){this._regenTick=time;S.hp=Math.min(S.maxHp,S.hp+S.hpRegen);}
     document.getElementById('h-time').textContent='\u23F1 '+Math.floor(secs/60)+':'+(secs%60).toString().padStart(2,'0');
     if(S.kills!==this._prevKills){this._prevKills=S.kills;document.getElementById('h-kills').textContent='\u2620 '+S.kills+' kills';}
   }
@@ -916,7 +1251,7 @@ class GameScene extends Phaser.Scene{
   }
 }
 
-new Phaser.Game({type:Phaser.AUTO,width:GW,height:GH,parent:document.body,backgroundColor:'#050510',physics:{default:'arcade',arcade:{gravity:{x:0,y:0},debug:false}},scene:[MenuScene,GameScene]});
+new Phaser.Game({type:Phaser.AUTO,width:GW,height:GH,parent:'game-wrap',backgroundColor:'#050510',physics:{default:'arcade',arcade:{gravity:{x:0,y:0},debug:false}},scene:[MenuScene,GameScene]});
 
 </script>
 </body>
