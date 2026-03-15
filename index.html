@@ -395,11 +395,12 @@ function buildStatTierUpgrades(){
 }
 
 function buildGunUpgrades(){
+  const rw={COMMON:0.9,UNCOMMON:0.6,RARE:0.32,EPIC:0.12,LEGENDARY:0.015};
   return GUNS.map(g=>({
-    icon:'🔫',r:g.rarity,weapon:true,name:g.name,desc:g.desc,
+    icon:'🔫',r:g.rarity,weapon:true,name:g.name,desc:g.desc,weight:rw[g.rarity]||0.2,
     fn:()=>{
       const has=S.loadout.includes(g.id);
-      if(!has&&S.loadout.length>=6){G_NOTIFY={t:'LOADOUT FULL (MAX 6 WEAPONS)',c:'#ff7744'};return;}
+      if(!has&&S.loadout.length>=S.maxWeapons){G_NOTIFY={t:'LOADOUT FULL (MAX '+S.maxWeapons+' WEAPONS)',c:'#ff7744'};return;}
       if(!has)S.loadout.push(g.id);
       S.currentGun=g.id;
       S.gunLevels[g.id]=Math.min(4,(S.gunLevels[g.id]||1)+1);
@@ -750,6 +751,7 @@ class GameScene extends Phaser.Scene{
     mk('drop_magnet',18,18,g=>{g.fillStyle(0x00aacc);g.fillRect(2,0,14,10);g.fillStyle(0x00ccff,.9);g.fillRect(0,4,5,14);g.fillRect(13,4,5,14);g.fillStyle(0xff2222);g.fillRect(0,14,5,4);g.fillStyle(0x2222ff);g.fillRect(13,14,5,4);g.fillStyle(0xffffff,.6);g.fillRect(2,1,5,4);});
     mk('drop_shield',16,18,g=>{g.fillStyle(0x2244cc);g.fillRect(1,0,14,16);g.fillStyle(0x3366ff);g.fillRect(3,2,10,13);g.fillStyle(0x6699ff,.8);g.fillRect(3,0,10,2);g.fillTriangle(3,15,13,15,8,18);g.fillStyle(0xaaccff,.6);g.fillRect(5,4,6,7);});
     mk('drop_frenzy',16,16,g=>{g.fillStyle(0xff3300);g.fillRect(6,0,4,16);g.fillRect(0,6,16,4);g.fillStyle(0xff6600);g.fillRect(3,3,10,10);g.fillStyle(0xffcc00,.9);g.fillRect(6,6,4,4);});
+    mk('drop_legend',20,20,g=>{g.fillStyle(0x5a3b00);g.fillRect(0,0,20,20);g.fillStyle(0xb88a20);g.fillRect(2,2,16,16);g.fillStyle(0xffcc44);g.fillRect(4,4,12,12);g.fillStyle(0xffffff,.6);g.fillRect(8,8,4,4);});
     mk('grid',64,64,g=>{g.fillStyle(0x050512);g.fillRect(0,0,64,64);g.lineStyle(1,0x0c0c28,.9);g.strokeRect(0,0,64,64);});
   }
 
@@ -763,6 +765,7 @@ class GameScene extends Phaser.Scene{
     this.gamePaused=false;this._manualPause=false;this.iframes=false;
     this.startTime=this.time.now;this._prevKills=-1;this._vampAccum=0;
     this._regenTick=0;this._gunKills=0;
+    this._bossAtkT=0;this._bossAtkT2=0;
     this.orbitAngle=0;this.orbVisuals=[];
     this.novaTimer=null;this.missileTimer=null;this.chainTimer=null;this.shotgunTimer=null;this.spawnTimer=null;
     this.gunTimers={};this.gunShotCounter={};
@@ -841,6 +844,8 @@ class GameScene extends Phaser.Scene{
 
   _curGun(){return this.gunMap[S.currentGun]||this.gunMap.pistol;}
   _gunTier(g){return Math.max(1,Math.min(4,S.gunLevels[g.id]||1));}
+  _luckFactor(){return Phaser.Math.Clamp((100+S.luck)/100,0,3);}
+  _luckUpgradeFactor(){return Phaser.Math.Clamp(1+S.luck/290,0.2,2.2);}
 
   _baseGunDelay(g){
     const speedMult=Math.max(.35,1-(S.attackSpeed/100));
@@ -880,15 +885,18 @@ class GameScene extends Phaser.Scene{
   _spawnGunBullet(px,py,angle,g,opts={}){
     const b=this.bullets.getFirstDead(true,px,py,'bullet');
     if(!b)return;
-    const tex=({
-      laser_gun:'bullet_laser',gatling_laser:'bullet_laser',particle_acc:'bullet_laser',
-      fireball:'bullet_fire',wand:'bullet_fire',flamethrower:'bullet_fire',
-      icicle:'bullet_ice',crossbow:'bullet_ice',
-      shuriken:'bullet_shuriken',
-      ghost_scepter:'bullet_arc',flute:'bullet_arc',taser:'bullet_arc'
-    })[g.id]||'bullet';
+    const sty={
+      pistol:{tex:'bullet',tint:0xe8e8ff,sc:1},smg:{tex:'bullet',tint:0xbbe8ff,sc:.85},revolver:{tex:'bullet',tint:0xffddaa,sc:1.05},
+      minigun:{tex:'bullet',tint:0xffaa66,sc:.8},laser_gun:{tex:'bullet_laser',tint:0x66e0ff,sc:1.05},gatling_laser:{tex:'bullet_laser',tint:0xff6688,sc:1.08},
+      particle_acc:{tex:'bullet_laser',tint:0xaaff66,sc:1.15},fireball:{tex:'bullet_fire',tint:0xff6633,sc:1.2},wand:{tex:'bullet_fire',tint:0xff44aa,sc:1},
+      flamethrower:{tex:'bullet_fire',tint:0xffaa00,sc:.7},icicle:{tex:'bullet_ice',tint:0x88e6ff,sc:1},crossbow:{tex:'bullet_ice',tint:0xddddff,sc:.95},
+      shuriken:{tex:'bullet_shuriken',tint:0xccddee,sc:1},flute:{tex:'bullet_arc',tint:0xdd88ff,sc:1},ghost_scepter:{tex:'bullet_arc',tint:0xaa66ff,sc:1.15},
+      taser:{tex:'bullet_arc',tint:0x88bbff,sc:.9},harpoon:{tex:'bullet_ice',tint:0x66aaff,sc:1.1},rocket:{tex:'bullet_fire',tint:0xffbb66,sc:1.2},
+      grenade_launcher:{tex:'bullet_fire',tint:0xff8844,sc:1.1},nuclear_launcher:{tex:'bullet_fire',tint:0xff3355,sc:1.35},double_barrel:{tex:'pellet',tint:0xffcc88,sc:1}
+    }[g.id]||{tex:'bullet',tint:0xffffff,sc:1};
+    const tex=sty.tex||'bullet';
     const tier=this._gunTier(g);
-    b.setTexture(tex).setPosition(px,py).setActive(true).setVisible(true).setDepth(7).setRotation(angle);
+    b.setTexture(tex).setScale(sty.sc||1).setTint(sty.tint||0xffffff).setPosition(px,py).setActive(true).setVisible(true).setDepth(7).setRotation(angle);
     b.body.enable=true;b.body.reset(px,py);
     b.hitSet=new Set();
     b.curved=S.curvedBullets||!!opts.curved;
@@ -948,6 +956,7 @@ class GameScene extends Phaser.Scene{
 
   _spawnWave(){
     if(this.gamePaused)return;
+    if(this.activeBoss&&this.activeBoss.active)return;
     const n=waveSize();
     for(let i=0;i<n;i++)this._spawnOne();
     this.spawnTimer.remove(false);
@@ -985,6 +994,12 @@ class GameScene extends Phaser.Scene{
     const bt=BOSS_TYPES[bIdx];
     const cam=this.cameras.main.worldView;
     const x=cam.right+110,y=(cam.top+cam.bottom)/2;
+    // Boss phase: remove all non-boss enemies.
+    this.enemies.getChildren().forEach(e=>{
+      if(!e.active||e._isBoss)return;
+      e.setActive(false).setVisible(false);
+      if(e.body){e.body.enable=false;e.body.setVelocity(0,0);}e.setPosition(-9999,-9999);
+    });
     const b=this.enemies.getFirstDead(true,x,y,bt.key);
     if(!b)return;
     b.setPosition(x,y).setActive(true).setVisible(true).setDepth(6).setScale(1);
@@ -994,6 +1009,8 @@ class GameScene extends Phaser.Scene{
     b.hp=(bt.hpBase+S.level*bt.hpLvl);b.maxHp=b.hp;
     try{if(b.preFX){b.preFX.clear();b.preFX.addGlow(bt.glow,18,0,false,.08,20);}}catch(err){}
     this.activeBoss=b;
+    this._bossAtkT=this.time.now+1600;
+    this._bossAtkT2=this.time.now+4200;
     document.getElementById('boss-name').textContent=bt.name;
     document.getElementById('boss-hp-fill').style.width='100%';
     document.getElementById('boss-hp-fill').style.background='linear-gradient(90deg,#440011,#cc0033 55%,#ff2255)';
@@ -1011,6 +1028,29 @@ class GameScene extends Phaser.Scene{
       this.activeBoss._phase2=true;
       document.getElementById('boss-hp-fill').style.background='linear-gradient(90deg,#440044,#990099 50%,#ff00ff)';
       this._notify('\u26A0 PHASE 2!','#ff00ff');SFX.bosshit();
+    }
+  }
+
+  _bossSpecialAttacks(time){
+    const b=this.activeBoss;
+    if(!b||!b.active||this.gamePaused)return;
+    if(time>(this._bossAtkT||0)){
+      this._bossAtkT=time+2200;
+      const ring=this.add.circle(b.x,b.y,12,0xff4477,.24).setDepth(8).setStrokeStyle(2,0xff88aa,.95);
+      this.tweens.add({targets:ring,scaleX:14,scaleY:14,alpha:0,duration:520,ease:'Quad.out',onComplete:()=>ring.destroy()});
+      if(Phaser.Math.Distance.Between(b.x,b.y,this.player.x,this.player.y)<170)this._playerTakeDamage(18);
+    }
+    if(time>(this._bossAtkT2||0)){
+      this._bossAtkT2=time+4600;
+      if(b._bossType&&b._bossType.key==='boss_titan'){
+        const tx=this.player.x,ty=this.player.y;
+        const warn=this.add.circle(tx,ty,22,0xff5500,.18).setDepth(20).setStrokeStyle(2,0xffaa44,.95);
+        this.tweens.add({targets:warn,scaleX:5,scaleY:5,alpha:.08,duration:650,onComplete:()=>{warn.destroy();const blast=this.add.circle(tx,ty,18,0xff3300,.3).setDepth(20);this.tweens.add({targets:blast,scaleX:8,scaleY:8,alpha:0,duration:360,onComplete:()=>blast.destroy()});if(Phaser.Math.Distance.Between(tx,ty,this.player.x,this.player.y)<120)this._playerTakeDamage(26);}});
+      } else if(b._bossType&&b._bossType.key==='boss_specter'){
+        for(let i=0;i<3;i++){this._activateEnemy(b.x+Phaser.Math.Between(-40,40),b.y+Phaser.Math.Between(-40,40),ENEMY_TYPES[3],0.85,true);} 
+      } else {
+        for(let i=0;i<8;i++){const a=(i/8)*Math.PI*2;const p=this.bullets.getFirstDead(true,b.x,b.y,'bullet_arc');if(!p)continue;p.setTexture('bullet_arc').setPosition(b.x,b.y).setActive(true).setVisible(true).setDepth(7);p.body.enable=true;p.body.reset(b.x,b.y);p.body.setVelocity(Math.cos(a)*280,Math.sin(a)*280);p.hitSet=new Set();p.pierceLeft=0;p.baseDmg=14;p.hitCount=0;p.falloff=1;p.gunId='boss';}
+      }
     }
   }
 
@@ -1123,6 +1163,7 @@ class GameScene extends Phaser.Scene{
   _retireProj(p){
     if(!p)return;p.setActive(false).setVisible(false);
     if(p.body){p.body.enable=false;p.body.setVelocity(0,0);}
+    p.clearTint();p.setScale(1);
     p.setPosition(-9999,-9999);
     try{if(p.preFX)p.preFX.clear();}catch(e){}
   }
@@ -1137,7 +1178,13 @@ class GameScene extends Phaser.Scene{
       const gun=this.gunMap.ghost_scepter,tier=this._gunTier(gun),req=(gun.ghostHpReq&&gun.ghostHpReq[tier-1])||20;
       if(this._gunKills>=req){this._gunKills=0;S.maxHp+=1;S.hp=Math.min(S.maxHp,S.hp+1);this._notify('+1 MAX HP (GHOST SCEPTER)','#ddaaff');}
     }
-    if(enemy._isBoss){document.getElementById('boss-bar-wrap').style.display='none';this.activeBoss=null;SFX.bossdie();}
+    if(enemy._isBoss){
+      document.getElementById('boss-bar-wrap').style.display='none';
+      this.activeBoss=null;
+      const crate=this.drops.getFirstDead(true,ex,ey,'drop_legend');
+      if(crate){crate.setTexture('drop_legend').setPosition(ex,ey).setActive(true).setVisible(true).setDepth(6);crate.body.enable=true;crate.body.reset(ex,ey);crate.dropType='drop_legend';}
+      SFX.bossdie();
+    }
     enemy.setActive(false).setVisible(false);enemy.body.enable=false;enemy.body.setVelocity(0,0);enemy.setPosition(-9999,-9999);
     try{if(enemy.preFX)enemy.preFX.clear();}catch(e){}
     // Vampiric heal accumulator
@@ -1156,9 +1203,11 @@ class GameScene extends Phaser.Scene{
     else{for(let i=0;i<drops;i++)this._dropGem(ex+Phaser.Math.Between(-14,14),ey+Phaser.Math.Between(-14,14),'gem',S.xpMult,0xffcc00);}
     // Item drops — nerfed, floor at 0.8% late game
     if(!isBoss&&!enemy._mini){
-      const chance=Math.max(0.008,0.075-S.level*0.0028)+(type.key==='e_brute'?0.04:(type.key==='e_sentinel'?0.015:0))+S.luck*.001;
+      const l=this._luckFactor();
+      const chance=(Math.max(0.008,0.075-S.level*0.0028)+(type.key==='e_brute'?0.04:(type.key==='e_sentinel'?0.015:0)))*l;
       if(Math.random()<chance){
-        const r=Math.random(),key=r<.4?'drop_magnet':r<.7?'drop_shield':'drop_frenzy';
+        const crateChance=Math.min(.7,0.14*l);
+        const r=Math.random(),key=r<crateChance?'drop_legend':(r<(.46+crateChance*.2)?'drop_magnet':r<(.76+crateChance*.15)?'drop_shield':'drop_frenzy');
         const it=this.drops.getFirstDead(true,ex,ey,key);
         if(it){it.setPosition(ex,ey).setActive(true).setVisible(true).setDepth(4).setTexture(key);it.body.enable=true;it.body.reset(ex,ey);it.body.setVelocity(0,0);it.dropType=key;try{if(it.preFX){it.preFX.clear();it.preFX.addGlow(key==='drop_shield'?0x4488ff:key==='drop_magnet'?0x00ccff:0xff4400,8,0,false,.1,10);}}catch(e){}}
       }
@@ -1201,6 +1250,12 @@ class GameScene extends Phaser.Scene{
       case 'drop_frenzy':
         if(!S.frenzyActive){S.frenzyActive=true;S.frenzyBonus=Math.floor(S.dmg);S.dmg+=S.frenzyBonus;SFX.frenzy();this._notify('\uD83D\uDD25 FRENZY! 2x DAMAGE 10 SEC','#ff6600');this._updateHUD();this.time.delayedCall(10000,()=>{S.dmg-=S.frenzyBonus;S.frenzyBonus=0;S.frenzyActive=false;this._updateHUD();this._notify('FRENZY EXPIRED','#884400');});}
         break;
+      case 'drop_legend':{
+        S.hp=Math.min(S.maxHp,S.hp+100);
+        this._notify('LEGENDARY CRATE: +100 HP','#ffcc44');
+        this._showLegendCrateRewards();
+        break;
+      }
     }
     this._updateHUD();
   }
@@ -1310,6 +1365,37 @@ class GameScene extends Phaser.Scene{
     this.tweens.add({targets:t,y:GH*.42-60,alpha:0,duration:1900,ease:'Power2',onComplete:()=>t.destroy()});
   }
 
+  _showLegendCrateRewards(){
+    this.gamePaused=true;this.physics.pause();
+    this._allTimers().forEach(t=>{if(t)t.paused=true;});
+    const allItems=buildItemUpgrades();
+    const t4=allItems.filter(x=>x.r==='EPIC');
+    const nonT4=allItems.filter(x=>x.r!=='EPIC');
+    const choices=[];
+    if(t4.length)choices.push(t4[Phaser.Math.Between(0,t4.length-1)]);
+    while(choices.length<4&&nonT4.length){
+      const i=Phaser.Math.Between(0,nonT4.length-1);
+      const it=nonT4.splice(i,1)[0];
+      if(!choices.find(c=>c.name===it.name))choices.push(it);
+    }
+    document.getElementById('ov-eyebrow').textContent='legendary crate';
+    document.getElementById('ov-title').textContent='CHOOSE LOOT';
+    document.getElementById('ov-sub').textContent='contains guaranteed tier 4 item';
+    const body=document.getElementById('ov-body');body.innerHTML='';
+    const frame=document.createElement('div');frame.className='slot-frame';
+    const row=document.createElement('div');row.className='cards-row';
+    choices.forEach(upg=>{
+      const col=RC[upg.r]||'#aaa';
+      const card=document.createElement('div');card.className='ucard';
+      card.innerHTML='<div class="ucard-icon">🎁</div><div class="ucard-name">'+upg.name+'</div><div class="ucard-desc">'+upg.desc+'</div><div class="ucard-rarity" style="color:'+col+';border-color:'+col+'66">'+upg.r+'</div>';
+      card.addEventListener('click',()=>{upg.fn();S.upgradesPicked.unshift('Legendary Crate: '+upg.name);if(S.upgradesPicked.length>40)S.upgradesPicked.length=40;this._resumePlay();this._notify('LEGENDARY CRATE: '+upg.name,'#ffcc44');},{once:true});
+      row.appendChild(card);
+    });
+    frame.appendChild(row);body.appendChild(frame);
+    document.getElementById('lvl-ov').classList.add('visible');
+    this._updateHUD();
+  }
+
   _showLevelUp(){
     if(this.gamePaused)return;
     this.gamePaused=true;this.physics.pause();
@@ -1325,9 +1411,20 @@ class GameScene extends Phaser.Scene{
     const pickWeighted=(arr,n)=>{
       const pool=[...arr],out=[];
       while(pool.length&&out.length<n){
-        const total=pool.reduce((s,x)=>s+(x.weight||1),0);
+        const luckBias=Phaser.Math.Clamp(1+S.luck/500,0.55,1.65);
+        const waveBias=1+Math.min(.35,S.level/120);
+        const rarityBase={COMMON:1,UNCOMMON:.82,RARE:.52,EPIC:.2,LEGENDARY:.015};
+        const rMul=x=>{
+          const b=rarityBase[x.r]||1;
+          if(x.r==='LEGENDARY')return b*luckBias*(1+Math.min(.12,S.level/220));
+          if(x.r==='EPIC')return b*luckBias*waveBias;
+          if(x.r==='RARE')return b*(0.9+0.1*luckBias)*waveBias;
+          if(x.r==='UNCOMMON')return b*(0.95+0.08*luckBias);
+          return b;
+        };
+        const total=pool.reduce((s,x)=>s+((x.weight||1)*rMul(x)),0);
         let r=Math.random()*total,idx=0;
-        for(;idx<pool.length;idx++){r-=(pool[idx].weight||1);if(r<=0)break;}
+        for(;idx<pool.length;idx++){r-=((pool[idx].weight||1)*rMul(pool[idx]));if(r<=0)break;}
         out.push(pool[Math.min(idx,pool.length-1)]);
         pool.splice(Math.min(idx,pool.length-1),1);
       }
@@ -1450,6 +1547,7 @@ class GameScene extends Phaser.Scene{
 
   update(time,delta){
     if(this.gamePaused)return;
+    this._bossSpecialAttacks(time);
     if(Phaser.Input.Keyboard.JustDown(this.escKey)||Phaser.Input.Keyboard.JustDown(this.pKey))this._togglePause();
     const dt=delta/1000;
     this.bg.tilePositionX=this.cameras.main.scrollX;this.bg.tilePositionY=this.cameras.main.scrollY;
