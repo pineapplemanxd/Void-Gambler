@@ -14,7 +14,8 @@
     "build:win": "electron-builder --win nsis",
     "build:portable": "electron-builder --win portable",
     "build:exe": "electron-builder --win nsis",
-    "build:packager": "electron-packager . \"Void Gambler\" --platform=win32 --arch=x64 --out=dist --overwrite --prune=true"
+    "build:packager": "electron-packager . \"Void Gambler\" --platform=win32 --arch=x64 --out=dist --overwrite --prune=true",
+    "publish:win": "electron-builder --win nsis --publish always"
   },
   "dependencies": {
     "discord-rpc": "^4.0.1",
