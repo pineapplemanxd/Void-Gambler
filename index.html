@@ -236,6 +236,10 @@ const SFX=(()=>{
     missile:()=>tone(210,'sawtooth',.07,.035,420),
     bosshit:()=>{tone(120,'sawtooth',.15,.09,40);noise(.1,.06);},
     bossdie:()=>{tone(100,'sawtooth',1,.18,20);noise(.8,.12,.1);tone(440,'sine',.4,.08,880,.3);},
+    laserCharge:()=>{tone(540,'triangle',.18,.06,290);tone(760,'sine',.2,.04,480,.06);},
+    laserFire:()=>{tone(1180,'sawtooth',.16,.08,260);noise(.08,.05);},
+    extreme:()=>{tone(90,'sawtooth',.36,.12,30);tone(180,'square',.22,.08,60,.06);noise(.22,.08);},
+    bossbeat:(flip=0)=>{const f=flip?146:130;tone(f,'triangle',.22,.035,90);tone(f*2,'sine',.12,.02,160,.04);},
     frenzy:()=>{tone(262,'square',.12,.08);tone(523,'square',.16,.06,0,.09);tone(784,'square',.2,.04,0,.18);},
     magnet:()=>{tone(660,'sine',.18,.07,1320);tone(1320,'sine',.15,.05,0,.15);},
     pause:()=>tone(440,'sine',.08,.04,300),
@@ -633,34 +637,34 @@ const ENEMY_TYPES=[
 const BOSS_TYPES=[
   {key:'boss_void',name:'VOID BEHEMOTH',w:60,h:60,glow:0xcc00ff,
    draw(g){g.fillStyle(0x220033);g.fillRect(0,0,60,60);g.fillStyle(0x550088);g.fillRect(4,4,52,52);g.fillStyle(0x9900cc);g.fillRect(8,8,44,44);g.fillStyle(0xcc44ff,.4);g.fillRect(14,14,32,32);g.fillStyle(0xff88ff,.25);g.fillRect(22,22,16,16);g.fillStyle(0x220033);g.fillRect(0,0,6,6);g.fillRect(54,0,6,6);g.fillRect(0,54,6,6);g.fillRect(54,54,6,6);g.fillStyle(0xff88ff,.3);g.fillRect(26,8,8,44);g.fillRect(8,26,44,8);},
-   hpBase:600,hpLvl:180,spdMult:0.28,dmg:35,xpDrop:20,phase2Hp:0.45},
+    hpBase:600,hpLvl:180,spdMult:0.28,dmg:35,xpDrop:20,phase2Hp:0.45,music:'music/void_behemoth.mp3'},
   {key:'boss_titan',name:'OBLIVION CITADEL',w:68,h:68,glow:0xff2a66,
    draw(g){g.fillStyle(0x140008);g.fillRect(0,0,68,68);g.fillStyle(0x3c0018);g.fillRect(3,3,62,62);g.fillStyle(0x7c0030);g.fillRect(8,8,52,52);g.fillStyle(0xd01458,.35);g.fillRect(15,15,38,38);g.fillStyle(0xff5a88,.65);g.fillRect(12,31,44,6);g.fillRect(31,12,6,44);g.fillStyle(0xffc3d3,.28);g.fillRect(25,25,18,18);g.fillStyle(0x240010);g.fillRect(0,0,7,7);g.fillRect(61,0,7,7);g.fillRect(0,61,7,7);g.fillRect(61,61,7,7);},
-   hpBase:1750,hpLvl:360,spdMult:0.35,dmg:68,xpDrop:44,phase2Hp:0.62,special:'citadel'},
+    hpBase:1750,hpLvl:360,spdMult:0.35,dmg:68,xpDrop:44,phase2Hp:0.62,special:'citadel',music:'music/oblivion_citadel.mp3'},
   {key:'boss_specter',name:'VOID SPECTER',w:50,h:50,glow:0x00ffcc,
    draw(g){g.fillStyle(0x001122);g.fillRect(0,0,50,50);g.fillStyle(0x004466);g.fillRect(3,3,44,44);g.fillStyle(0x008899);g.fillRect(7,7,36,36);g.fillStyle(0x00ffdd,.5);g.fillRect(13,13,24,24);g.fillStyle(0x000000,.7);g.fillRect(20,20,10,10);g.fillStyle(0x00ffee,.8);g.fillRect(22,22,6,6);g.fillStyle(0x00ccbb,.2);g.fillRect(10,3,4,44);g.fillRect(36,3,4,44);g.fillRect(3,10,44,4);g.fillRect(3,36,44,4);},
-   hpBase:500,hpLvl:150,spdMult:0.45,dmg:28,xpDrop:18,phase2Hp:0.4,special:'specter_boss'},
+    hpBase:500,hpLvl:150,spdMult:0.45,dmg:28,xpDrop:18,phase2Hp:0.4,special:'specter_boss',music:'music/void_specter.mp3'},
   {key:'boss_warden',name:'GRAVITY WARDEN',w:62,h:62,glow:0x66aaff,
    draw(g){g.fillStyle(0x061428);g.fillRect(0,0,62,62);g.fillStyle(0x0f315a);g.fillRect(4,4,54,54);g.fillStyle(0x1e5ea2);g.fillRect(9,9,44,44);g.fillStyle(0x6cb7ff,.35);g.fillRect(16,16,30,30);g.fillStyle(0x9ad0ff,.7);g.fillRect(28,8,6,46);g.fillRect(8,28,46,6);},
-   hpBase:760,hpLvl:215,spdMult:0.4,dmg:41,xpDrop:24,phase2Hp:0.5,special:'warden'},
+    hpBase:760,hpLvl:215,spdMult:0.4,dmg:41,xpDrop:24,phase2Hp:0.5,special:'warden',music:'music/gravity_warden.mp3'},
   {key:'boss_seraph',name:'RIFT SERAPH',w:56,h:56,glow:0xffd166,
    draw(g){g.fillStyle(0x2a1a00);g.fillRect(0,0,56,56);g.fillStyle(0x5b3a00);g.fillRect(3,3,50,50);g.fillStyle(0xa16a00);g.fillRect(8,8,40,40);g.fillStyle(0xffcc66,.4);g.fillRect(14,14,28,28);g.fillStyle(0xffeeaa,.75);g.fillRect(24,6,8,44);g.fillRect(6,24,44,8);},
-   hpBase:820,hpLvl:240,spdMult:0.37,dmg:46,xpDrop:26,phase2Hp:0.55,special:'seraph'},
+    hpBase:820,hpLvl:240,spdMult:0.37,dmg:46,xpDrop:26,phase2Hp:0.55,special:'seraph',music:'music/rift_seraph.mp3'},
   {key:'boss_forge',name:'EMBER FORGE',w:64,h:64,glow:0xff5500,
    draw(g){g.fillStyle(0x290a00);g.fillRect(0,0,64,64);g.fillStyle(0x5c1900);g.fillRect(4,4,56,56);g.fillStyle(0xa62c00);g.fillRect(9,9,46,46);g.fillStyle(0xff6622,.36);g.fillRect(15,15,34,34);g.fillStyle(0xffb066,.6);g.fillRect(12,30,40,4);g.fillRect(30,12,4,40);},
-   hpBase:960,hpLvl:265,spdMult:0.32,dmg:52,xpDrop:29,phase2Hp:0.58,special:'forge'},
+    hpBase:960,hpLvl:265,spdMult:0.32,dmg:52,xpDrop:29,phase2Hp:0.58,special:'forge',music:'music/ember_forge.mp3'},
   {key:'boss_leviathan',name:'ABYSS LEVIATHAN',w:72,h:52,glow:0x33ddff,
    draw(g){g.fillStyle(0x001d29);g.fillRect(0,0,72,52);g.fillStyle(0x00465f);g.fillRect(4,4,64,44);g.fillStyle(0x00789c);g.fillRect(10,9,52,34);g.fillStyle(0x44d3ff,.35);g.fillRect(16,14,40,24);g.fillStyle(0xb4f1ff,.5);g.fillRect(52,18,12,16);},
-   hpBase:1040,hpLvl:290,spdMult:0.34,dmg:55,xpDrop:31,phase2Hp:0.5,special:'leviathan'},
+    hpBase:1040,hpLvl:290,spdMult:0.34,dmg:55,xpDrop:31,phase2Hp:0.5,special:'leviathan',music:'music/abyss_leviathan.mp3'},
   {key:'boss_clock',name:'CHRONO TYRANT',w:60,h:60,glow:0x99ff66,
    draw(g){g.fillStyle(0x102800);g.fillRect(0,0,60,60);g.fillStyle(0x2f5710);g.fillRect(4,4,52,52);g.fillStyle(0x5f9925);g.fillRect(9,9,42,42);g.fillStyle(0xb3ff66,.35);g.fillRect(15,15,30,30);g.fillStyle(0xe2ffb0,.7);g.fillRect(28,10,4,22);g.fillRect(28,28,16,4);},
-   hpBase:1120,hpLvl:320,spdMult:0.36,dmg:58,xpDrop:34,phase2Hp:0.52,special:'clock'},
+    hpBase:1120,hpLvl:320,spdMult:0.36,dmg:58,xpDrop:34,phase2Hp:0.52,special:'clock',music:'music/chrono_tyrant.mp3'},
   {key:'boss_hive',name:'HEX HIVE-MIND',w:58,h:58,glow:0xffee33,
    draw(g){g.fillStyle(0x2a2200);g.fillRect(0,0,58,58);g.fillStyle(0x625000);g.fillRect(3,3,52,52);g.fillStyle(0xa88b00);g.fillRect(8,8,42,42);g.fillStyle(0xffdd33,.4);g.fillRect(14,14,30,30);g.fillStyle(0xfff199,.6);g.fillRect(11,26,36,6);g.fillRect(26,11,6,36);},
-   hpBase:1220,hpLvl:345,spdMult:0.38,dmg:61,xpDrop:36,phase2Hp:0.56,special:'hive'},
+    hpBase:1220,hpLvl:345,spdMult:0.38,dmg:61,xpDrop:36,phase2Hp:0.56,special:'hive',music:'music/hex_hive-mind.mp3'},
   {key:'boss_storm',name:'TEMPEST MONARCH',w:66,h:66,glow:0x66bbff,
    draw(g){g.fillStyle(0x07142b);g.fillRect(0,0,66,66);g.fillStyle(0x123c72);g.fillRect(4,4,58,58);g.fillStyle(0x1b64b8);g.fillRect(9,9,48,48);g.fillStyle(0x66bbff,.35);g.fillRect(15,15,36,36);g.fillStyle(0xd6eeff,.7);g.fillRect(31,8,4,50);g.fillRect(8,31,50,4);},
-   hpBase:1360,hpLvl:380,spdMult:0.39,dmg:66,xpDrop:40,phase2Hp:0.6,special:'storm'},
+    hpBase:1360,hpLvl:380,spdMult:0.39,dmg:66,xpDrop:40,phase2Hp:0.6,special:'storm',music:'music/tempest_monarch.mp3'},
 ];
 
 function pickType(){
@@ -776,6 +780,7 @@ class GameScene extends Phaser.Scene{
     mk('player',28,28,g=>{g.fillStyle(0x0e3acc);g.fillRect(0,0,28,28);g.fillStyle(0x2255ff);g.fillRect(2,2,24,24);g.fillStyle(0x66aaff,.8);g.fillRect(5,5,9,9);g.fillStyle(0x0e3acc);[[0,0],[25,0],[0,25],[25,25]].forEach(([x,y])=>g.fillRect(x,y,3,3));});
     ENEMY_TYPES.forEach(t=>mk(t.key,t.w,t.h,t.draw));
     BOSS_TYPES.forEach(b=>mk(b.key,b.w,b.h,b.draw));
+    BOSS_TYPES.forEach(b=>{if(b.music)this.load.audio('bgm_'+b.key,b.music);});
     mk('e_mini',13,13,g=>{g.fillStyle(0x771111);g.fillRect(0,0,13,13);g.fillStyle(0xaa1111);g.fillRect(1,1,11,11);g.fillStyle(0xff3333,.5);g.fillRect(3,3,4,4);});
     mk('bullet',15,5,g=>{g.fillStyle(0xddddff);g.fillRect(0,0,15,5);g.fillStyle(0xffffff);g.fillRect(0,1,11,3);});
     mk('bullet_laser',18,4,g=>{g.fillStyle(0x66ccff);g.fillRect(0,0,18,4);g.fillStyle(0xccf5ff);g.fillRect(0,1,14,2);});
@@ -804,11 +809,18 @@ class GameScene extends Phaser.Scene{
     this.gamePaused=false;this._manualPause=false;this.iframes=false;
     this.startTime=this.time.now;this._prevKills=-1;this._vampAccum=0;
     this._regenTick=0;this._gunKills=0;
-    this._bossAtkT=0;this._bossAtkT2=0;
+    this._bossAtkT=0;this._bossAtkT2=0;this._bossAtkT3=0;
     this.orbitAngle=0;this.orbVisuals=[];
     this.novaTimer=null;this.missileTimer=null;this.chainTimer=null;this.shotgunTimer=null;this.spawnTimer=null;
     this.gunTimers={};this.gunShotCounter={};
     this.activeBoss=null;
+    this.bossLasers=[];
+    this._bossMusicTimer=null;
+    this._bossBeatFlip=0;
+    this._bossTrack=null;
+    this._bossTrackKey='';
+    this._bossTrackHtml=null;
+    this._bossTrackHtmlKey='';
     this._trainingMode=!!TRAINING_CFG.enabled;
     this._trainingBossKey=TRAINING_CFG.bossKey||BOSS_TYPES[0].key;
     this.gunMap=Object.fromEntries(GUNS.map(g=>[g.id,g]));
@@ -834,7 +846,10 @@ class GameScene extends Phaser.Scene{
     this.enemies=pool('e_grunt');this.gems=pool('gem');this.drops=pool('drop_magnet');
 
     this.player=this.physics.add.sprite(WW/2,WH/2,'player').setCollideWorldBounds(true).setDepth(10).setScale(0.82);
+    this.player.body.setSize(14,14,true);
     try{if(this.player.preFX)this._pGlow=this.player.preFX.addGlow(0x2255ff,12,0,false,.08,16);}catch(e){}
+
+    this.playerHitboxViz=this.add.rectangle(this.player.x,this.player.y,14,14,0xff3344,.35).setDepth(12).setStrokeStyle(1,0xff8899,.9);
 
     this.shieldCircle=this.add.circle(0,0,26,0x4488ff,0).setDepth(11).setStrokeStyle(2,0x88aaff,.9).setVisible(false);
 
@@ -868,6 +883,7 @@ class GameScene extends Phaser.Scene{
     document.getElementById('hud').style.display='flex';
     document.getElementById('boss-bar-wrap').style.display='none';
     this._updateHUD();
+    this.events.once('shutdown',()=>this._setBossMusic(false));
   }
 
   _mkTimer(ms,cb){return this.time.addEvent({delay:ms,callback:cb,callbackScope:this,loop:true});}
@@ -1073,6 +1089,8 @@ class GameScene extends Phaser.Scene{
     this.activeBoss=b;
     this._bossAtkT=this.time.now+1600;
     this._bossAtkT2=this.time.now+4200;
+    this._bossAtkT3=this.time.now+6400;
+    this._setBossMusic(true,bt.key);
     document.getElementById('boss-name').textContent=bt.name;
     document.getElementById('boss-hp-fill').style.width='100%';
     document.getElementById('boss-hp-fill').style.background='linear-gradient(90deg,#440011,#cc0033 55%,#ff2255)';
@@ -1224,6 +1242,7 @@ class GameScene extends Phaser.Scene{
             this._spawnBossShot(cv.right+18,y,Math.PI,phase2?410:340,Math.floor(bossDmg*0.27),0.86,0xff5f8f);
           });
         }
+        this._castBossLaser(b,0,{trackPlayer:true,chargeMs:320,duration:780,width:phase2?13:10,color:0xff9bb8,dmg:Math.floor(bossDmg*0.5)});
       }else if(key==='boss_specter'){
         const spawnCount=phase2?5:3;
         for(let i=0;i<spawnCount;i++)this._activateEnemy(b.x+Phaser.Math.Between(-50,50),b.y+Phaser.Math.Between(-50,50),ENEMY_TYPES[3],0.9,true);
@@ -1240,6 +1259,8 @@ class GameScene extends Phaser.Scene{
           this._spawnBossShot(x,cv.top-18,Math.PI/2,phase2?380:320,Math.floor(bossDmg*0.26),0.88,0x8bc6ff);
           this._spawnBossShot(x,cv.bottom+18,-Math.PI/2,phase2?380:320,Math.floor(bossDmg*0.26),0.88,0x8bc6ff);
         }
+        this._castBossLaser(b,0,{trackPlayer:true,offset:0,chargeMs:240,duration:720,width:phase2?12:9,color:0x9ed4ff,dmg:Math.floor(bossDmg*0.36)});
+        this._castBossLaser(b,0,{trackPlayer:true,offset:Math.PI/2,chargeMs:240,duration:720,width:phase2?12:9,color:0x9ed4ff,dmg:Math.floor(bossDmg*0.36)});
       }else if(key==='boss_seraph'){
         const flanks=phase2?10:6;
         for(let i=0;i<flanks;i++){
@@ -1247,6 +1268,8 @@ class GameScene extends Phaser.Scene{
           this._spawnBossShot(this.cameras.main.worldView.left-22,y,0,phase2?420:350,Math.floor(bossDmg*0.28),0.8,0xffefb3);
           this._spawnBossShot(this.cameras.main.worldView.right+22,y,Math.PI,phase2?420:350,Math.floor(bossDmg*0.28),0.8,0xffefb3);
         }
+        this._castBossLaser(b,0,{trackPlayer:true,offset:0,chargeMs:260,duration:700,width:phase2?11:8,color:0xfff1c2,dmg:Math.floor(bossDmg*0.39)});
+        if(phase2)this._castBossLaser(b,0,{trackPlayer:true,offset:0.22,chargeMs:260,duration:700,width:9,color:0xfff1c2,dmg:Math.floor(bossDmg*0.3)});
       }else if(key==='boss_forge'){
         const pools=phase2?16:10;
         for(let i=0;i<pools;i++){
@@ -1255,6 +1278,7 @@ class GameScene extends Phaser.Scene{
           const toP=Phaser.Math.Angle.Between(sx,sy,this.player.x,this.player.y);
           this._spawnBossShot(sx,sy,toP,phase2?300:240,Math.floor(bossDmg*0.34),1.08,0xff9944);
         }
+        this._castBossLaser(b,0,{trackPlayer:true,offset:Math.PI*0.25,chargeMs:220,duration:620,width:phase2?14:11,color:0xff8833,dmg:Math.floor(bossDmg*0.44)});
       }else if(key==='boss_leviathan'){
         const waves=phase2?3:2;
         for(let w=0;w<waves;w++){
@@ -1275,6 +1299,9 @@ class GameScene extends Phaser.Scene{
             this._spawnBossShot(b.x,b.y,a,phase2?430:360,Math.floor(bossDmg*0.37),0.92,0xbaff77);
           });
         }
+        const rot=((this._clockLaserRot||0)+(phase2?Math.PI/6:Math.PI/8));this._clockLaserRot=rot;
+        this._castBossLaser(b,0,{trackPlayer:true,offset:rot,chargeMs:200,duration:620,width:phase2?11:9,color:0xd9ff9d,dmg:Math.floor(bossDmg*0.35)});
+        this._castBossLaser(b,0,{trackPlayer:true,offset:rot+Math.PI/2,chargeMs:200,duration:620,width:phase2?11:9,color:0xd9ff9d,dmg:Math.floor(bossDmg*0.35)});
       }else if(key==='boss_hive'){
         const spawnCount=phase2?6:4;
         for(let i=0;i<spawnCount;i++)this._activateEnemy(b.x+Phaser.Math.Between(-70,70),b.y+Phaser.Math.Between(-70,70),ENEMY_TYPES[4],0.8,true);
@@ -1289,6 +1316,8 @@ class GameScene extends Phaser.Scene{
           const sx=this.cameras.main.worldView.left+Phaser.Math.Between(10,Math.floor(this.cameras.main.worldView.width-10));
           this._spawnBossShot(sx,this.cameras.main.worldView.top-24,Math.PI/2,phase2?470:390,Math.floor(bossDmg*0.22),0.74,0xb7dfff);
         }
+        this._castBossLaser(b,0,{trackPlayer:true,offset:0,chargeMs:180,duration:560,width:phase2?10:8,color:0xc7e6ff,dmg:Math.floor(bossDmg*0.33)});
+        if(phase2)this._castBossLaser(b,0,{trackPlayer:true,offset:Math.PI/2,chargeMs:180,duration:560,width:8,color:0xc7e6ff,dmg:Math.floor(bossDmg*0.25)});
       }else{
         const fan=phase2?11:7;
         const aim=Phaser.Math.Angle.Between(b.x,b.y,this.player.x,this.player.y);
@@ -1296,6 +1325,32 @@ class GameScene extends Phaser.Scene{
           const t=fan===1?0:(i/(fan-1)-0.5);
           const a=aim+t*(phase2?1.35:0.9);
           this._spawnBossShot(b.x,b.y,a,phase2?390:340,Math.floor(bossDmg*0.44),phase2?1.15:1,0xe088ff);
+        }
+      }
+    }
+    if(time>(this._bossAtkT3||0)){
+      this._bossAtkT3=time+(phase2?3800:5600);
+      SFX.extreme();
+      this.cameras.main.shake(260,0.008);
+      if(key==='boss_titan'){
+        [-0.2,0,0.2].forEach(off=>this._castBossLaser(b,0,{trackPlayer:true,offset:off,chargeMs:220,duration:760,width:phase2?14:11,color:0xffaac2,dmg:Math.floor(bossDmg*0.52)}));
+      }else if(key==='boss_storm'){
+        const ring=phase2?28:20;
+        for(let i=0;i<ring;i++){
+          const a=(i/ring)*Math.PI*2;
+          this._spawnBossShot(b.x,b.y,a,phase2?500:430,Math.floor(bossDmg*0.25),0.75,0xc9e7ff);
+        }
+        this._castBossLaser(b,0,{trackPlayer:true,offset:0,chargeMs:120,duration:640,width:phase2?12:10,color:0xd8eeff,dmg:Math.floor(bossDmg*0.4)});
+      }else if(key==='boss_hive'){
+        const n=phase2?10:7;
+        for(let i=0;i<n;i++)this._activateEnemy(b.x+Phaser.Math.Between(-95,95),b.y+Phaser.Math.Between(-95,95),ENEMY_TYPES[4],0.85,true);
+        this._castBossLaser(b,0,{trackPlayer:true,offset:Math.PI,chargeMs:220,duration:620,width:10,color:0xffefaa,dmg:Math.floor(bossDmg*0.36)});
+      }else{
+        const fan=phase2?17:12;
+        const aim=Phaser.Math.Angle.Between(b.x,b.y,this.player.x,this.player.y);
+        for(let i=0;i<fan;i++){
+          const t=fan===1?0:(i/(fan-1)-0.5);
+          this._spawnBossShot(b.x,b.y,aim+t*(phase2?1.8:1.2),phase2?520:430,Math.floor(bossDmg*0.28),0.82,0xff88dd);
         }
       }
     }
@@ -1437,6 +1492,98 @@ class GameScene extends Phaser.Scene{
     return p;
   }
 
+  _castBossLaser(owner,angle,opts={}){
+    if(!owner||!owner.active)return;
+    const len=opts.length||1600;
+    const width=opts.width||8;
+    const chargeMs=opts.chargeMs||260;
+    const duration=opts.duration||700;
+    const dmg=opts.dmg||22;
+    const color=opts.color||0xff88aa;
+    const off=opts.offset||0;
+    const track=!!opts.trackPlayer;
+    const resolveAngle=()=>{
+      if(track)return Phaser.Math.Angle.Between(owner.x,owner.y,this.player.x,this.player.y)+off;
+      return angle+off;
+    };
+    const x=owner.x,y=owner.y,a0=resolveAngle(),dx=Math.cos(a0),dy=Math.sin(a0);
+    const warn=this.add.line(x,y,0,0,dx*len,dy*len,color,.2).setOrigin(0,.5).setDepth(19).setLineWidth(width+4,width+4);
+    SFX.laserCharge();
+    this.tweens.add({targets:warn,alpha:.55,duration:chargeMs,yoyo:true,repeat:1});
+    this.time.delayedCall(chargeMs,()=>{
+      if(!owner.active){if(warn&&warn.active)warn.destroy();return;}
+      const a1=resolveAngle(),ox=owner.x,oy=owner.y,dx1=Math.cos(a1),dy1=Math.sin(a1);
+      const beam=this.add.line(ox,oy,0,0,dx1*len,dy1*len,color,.9).setOrigin(0,.5).setDepth(19).setLineWidth(width,width);
+      SFX.laserFire();
+      this.cameras.main.shake(Math.max(80,Math.floor(width*11)),0.0035+Math.min(.003,width/4000));
+      this.bossLasers.push({warn,beam,x:ox,y:oy,dx:dx1,dy:dy1,len,width,dmg,ends:this.time.now+duration,nextTick:this.time.now+40});
+    });
+  }
+
+  _tickBossLasers(time){
+    if(!this.bossLasers||!this.bossLasers.length)return;
+    const px=this.player.x,py=this.player.y;
+    for(let i=this.bossLasers.length-1;i>=0;i--){
+      const l=this.bossLasers[i];
+      if(!l){this.bossLasers.splice(i,1);continue;}
+      if(time>l.ends){if(l.warn&&l.warn.active)l.warn.destroy();if(l.beam&&l.beam.active)l.beam.destroy();this.bossLasers.splice(i,1);continue;}
+      if(time<(l.nextTick||0))continue;
+      l.nextTick=time+120;
+      const t=Phaser.Math.Clamp(((px-l.x)*l.dx+(py-l.y)*l.dy)/(l.len*l.len),0,1);
+      const cx=l.x+l.dx*l.len*t,cy=l.y+l.dy*l.len*t;
+      const dist=Phaser.Math.Distance.Between(px,py,cx,cy);
+      if(dist<l.width+9)this._playerTakeDamage(l.dmg);
+    }
+  }
+
+  _clearBossLasers(){
+    (this.bossLasers||[]).forEach(l=>{if(l.warn&&l.warn.active)l.warn.destroy();if(l.beam&&l.beam.active)l.beam.destroy();});
+    this.bossLasers=[];
+  }
+
+  _setBossMusic(active,bossKey=null){
+    if(active){
+      const key=bossKey||((this.activeBoss&&this.activeBoss._bossType&&this.activeBoss._bossType.key)||'');
+      const audioKey='bgm_'+key;
+      const bossDef=key?BOSS_TYPES.find(b=>b.key===key):null;
+      const musicPath=bossDef&&bossDef.music;
+      if(key&&this.cache&&this.cache.audio&&this.cache.audio.exists(audioKey)){
+        if(this._bossMusicTimer){this._bossMusicTimer.remove(false);this._bossMusicTimer=null;}
+        if(this._bossTrackHtml){this._bossTrackHtml.pause();this._bossTrackHtml.currentTime=0;this._bossTrackHtml=null;this._bossTrackHtmlKey='';}
+        if(this._bossTrack&&this._bossTrackKey===audioKey&&this._bossTrack.isPlaying)return;
+        if(this._bossTrack){this._bossTrack.stop();this._bossTrack.destroy();this._bossTrack=null;this._bossTrackKey='';}
+        this._bossTrack=this.sound.add(audioKey,{loop:true,volume:0.55});
+        try{if(this.sound&&this.sound.context&&this.sound.context.state==='suspended')this.sound.context.resume();}catch(e){}
+        this._bossTrack.play();
+        this._bossTrackKey=audioKey;
+        return;
+      }
+      if(this._bossTrack){this._bossTrack.stop();this._bossTrack.destroy();this._bossTrack=null;this._bossTrackKey='';}
+      if(musicPath){
+        if(this._bossMusicTimer){this._bossMusicTimer.remove(false);this._bossMusicTimer=null;}
+        if(this._bossTrackHtml&&this._bossTrackHtmlKey===musicPath){
+          this._bossTrackHtml.play().catch(()=>{});
+          return;
+        }
+        if(this._bossTrackHtml){this._bossTrackHtml.pause();this._bossTrackHtml.currentTime=0;this._bossTrackHtml=null;this._bossTrackHtmlKey='';}
+        try{
+          const a=new Audio(musicPath);
+          a.loop=true;a.volume=0.55;
+          a.play().catch(()=>{});
+          this._bossTrackHtml=a;
+          this._bossTrackHtmlKey=musicPath;
+          return;
+        }catch(e){}
+      }
+      if(this._bossMusicTimer)return;
+      this._bossMusicTimer=this.time.addEvent({delay:520,loop:true,callback:()=>{this._bossBeatFlip=1-(this._bossBeatFlip||0);SFX.bossbeat(this._bossBeatFlip||0);}});
+      return;
+    }
+    if(this._bossTrack){this._bossTrack.stop();this._bossTrack.destroy();this._bossTrack=null;this._bossTrackKey='';}
+    if(this._bossTrackHtml){this._bossTrackHtml.pause();this._bossTrackHtml.currentTime=0;this._bossTrackHtml=null;this._bossTrackHtmlKey='';}
+    if(this._bossMusicTimer){this._bossMusicTimer.remove(false);this._bossMusicTimer=null;}
+  }
+
   _killEnemy(enemy){
     if(!enemy.active)return;
     const ex=enemy.x,ey=enemy.y,type=enemy.etype||ENEMY_TYPES[0];
@@ -1450,6 +1597,8 @@ class GameScene extends Phaser.Scene{
     if(enemy._isBoss){
       document.getElementById('boss-bar-wrap').style.display='none';
       this.activeBoss=null;
+      this._setBossMusic(false);
+      this._clearBossLasers();
       this.bossShots.getChildren().forEach(s=>this._retireBossShot(s));
       if(!this._trainingMode){
         const crate=this.drops.getFirstDead(true,ex,ey,'drop_legend');
@@ -1758,6 +1907,7 @@ class GameScene extends Phaser.Scene{
   _gameOver(){
     if(this.gamePaused)return;
     this.gamePaused=true;this.physics.pause();
+    this._setBossMusic(false);
     META.totalDeaths++;
     META.bestLevel=Math.max(META.bestLevel,S.level);
     META.bestUniqueWeapons=Math.max(META.bestUniqueWeapons,S.loadout.length);
@@ -1845,7 +1995,9 @@ class GameScene extends Phaser.Scene{
 
   update(time,delta){
     if(this.gamePaused)return;
+    this._setBossMusic(!!(this.activeBoss&&this.activeBoss.active),(this.activeBoss&&this.activeBoss._bossType&&this.activeBoss._bossType.key)||null);
     this._bossSpecialAttacks(time);
+    this._tickBossLasers(time);
     if(Phaser.Input.Keyboard.JustDown(this.escKey)||Phaser.Input.Keyboard.JustDown(this.pKey))this._togglePause();
     const dt=delta/1000;
     this.bg.tilePositionX=this.cameras.main.scrollX;this.bg.tilePositionY=this.cameras.main.scrollY;
@@ -1959,6 +2111,7 @@ class GameScene extends Phaser.Scene{
     }
     // Shield visual
     if(S.shielded)this.shieldCircle.setPosition(px,py).setAlpha(.42+Math.sin(time*.007)*.26);
+    if(this.playerHitboxViz)this.playerHitboxViz.setPosition(px,py);
     // Cull projectiles
     const cv=this.cameras.main.worldView,m=220;
     const cull=p=>{if(!p.active)return;if(p.x<cv.left-m||p.x>cv.right+m||p.y<cv.top-m||p.y>cv.bottom+m)this._retireProj(p);};
