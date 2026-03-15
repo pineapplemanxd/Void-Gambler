@@ -227,11 +227,29 @@ body{background:var(--bg);display:flex;justify-content:center;align-items:center
   </div>
 </div>
 <div id="ticker-wrap"><span id="ticker">VOID GAMBLER &middot; WASD TO MOVE &middot; AUTO-FIRE &middot; 7 ENEMY TYPES &middot; BOSSES EVERY 5 LEVELS &middot; ORBITAL ORB &middot; NOVA PULSE &middot; HOMING MISSILES &middot; CHAIN LIGHTNING &middot; VOID SHOTGUN &middot; ITEM DROPS: MAGNET SHIELD FRENZY &middot; ESC TO PAUSE &middot; THE VOID GROWS STRONGER &nbsp;&nbsp; VOID GAMBLER &middot; WASD TO MOVE &middot; AUTO-FIRE &middot; 7 ENEMY TYPES &middot; BOSSES EVERY 5 LEVELS &middot; ORBITAL ORB &middot; NOVA PULSE &middot; HOMING MISSILES &middot; CHAIN LIGHTNING &middot; VOID SHOTGUN &middot; ITEM DROPS: MAGNET SHIELD FRENZY &middot; ESC TO PAUSE &middot; THE VOID GROWS STRONGER</span></div>
-<script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+<script src="./node_modules/phaser/dist/phaser.min.js"></script>
 <script>
 
 'use strict';
 let AUDIO_SETTINGS={music:0.55,sfx:0.8};
+const RPC=(function(){
+  let lastDetails='';
+  let lastState='';
+  let lastSentAt=0;
+  return {
+    set(details,state,force){
+      if(!window.electronRPC||typeof window.electronRPC.setPresence!=='function')return;
+      const now=Date.now();
+      if(!force&&details===lastDetails&&state===lastState&&now-lastSentAt<1400)return;
+      lastDetails=details;lastState=state;lastSentAt=now;
+      window.electronRPC.setPresence({details,state});
+    },
+    clear(){
+      if(!window.electronRPC||typeof window.electronRPC.clearPresence!=='function')return;
+      window.electronRPC.clearPresence();
+    }
+  };
+})();
 const SFX=(()=>{
   let ctx=null;
   const ac=()=>{if(!ctx)try{ctx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}if(ctx.state==='suspended')ctx.resume();return ctx;};
@@ -810,6 +828,7 @@ class MenuScene extends Phaser.Scene{
     hardModeToggle.onchange=()=>{HARD_MODE=!!hardModeToggle.checked;META.settings={...(META.settings||{}),hardMode:HARD_MODE};saveMeta();};
     trainHardToggle.onchange=()=>{META.settings={...(META.settings||{}),trainingHardMode:!!trainHardToggle.checked};saveMeta();};
     saveMeta();
+    RPC.set('In Main Menu','Choosing loadout',true);
     this._setMenuMusic(true);
     menuOv.addEventListener('pointerdown',this._menuGestureStart,{once:true});
     window.addEventListener('keydown',this._menuKeyStart,{once:true});
@@ -918,6 +937,9 @@ class GameScene extends Phaser.Scene{
     this._trainingBossKey=TRAINING_CFG.bossKey||BOSS_TYPES[0].key;
     this._trainingHardMode=!!TRAINING_CFG.hardMode;
     this._hardMode=!!(HARD_MODE||(this._trainingMode&&this._trainingHardMode));
+    this._rpcNextAt=0;
+    this._rpcLastLevel=-1;
+    this._rpcLastBoss='';
     this.gunMap=Object.fromEntries(GUNS.map(g=>[g.id,g]));
     this._applyCharacter();
     if(this._trainingMode){
@@ -968,8 +990,11 @@ class GameScene extends Phaser.Scene{
     if(this._trainingMode){
       this._notify('BOSS TRAINING: '+((BOSS_TYPES.find(b=>b.key===this._trainingBossKey)||{}).name||'BOSS'),'#ff88aa');
       this.time.delayedCall(450,()=>this._spawnBoss(this._trainingBossKey));
+      const bt=BOSS_TYPES.find(b=>b.key===this._trainingBossKey);
+      RPC.set('Boss Training',((bt&&bt.name)||'Boss')+(this._hardMode?' · Hard':''),true);
     }
     if(this._hardMode)this._notify('HARD MODE ACTIVE','#ff6666');
+    if(!this._trainingMode)RPC.set('In Run','Level '+S.level+(this._hardMode?' · Hard':''),true);
 
     const pb=document.getElementById('pause-btn');
     pb.style.display='block';
@@ -2111,6 +2136,7 @@ class GameScene extends Phaser.Scene{
     saveMeta();
     this._allTimers().forEach(t=>{if(t)t.paused=true;});
     SFX.die();
+    RPC.set('Game Over','Reached level '+S.level+' · '+S.kills+' kills',true);
     document.getElementById('boss-bar-wrap').style.display='none';
     const secs=Math.floor((this.time.now-this.startTime)/1000);
     const mm=Math.floor(secs/60),ss=(secs%60).toString().padStart(2,'0');
@@ -2185,6 +2211,16 @@ class GameScene extends Phaser.Scene{
   update(time,delta){
     if(this.gamePaused)return;
     const bossActive=!!(this.activeBoss&&this.activeBoss.active);
+    if(time>(this._rpcNextAt||0)){
+      this._rpcNextAt=time+2200;
+      if(bossActive){
+        const bname=(this.activeBoss&&this.activeBoss._bossType&&this.activeBoss._bossType.name)||'Boss';
+        const hpPct=this.activeBoss&&this.activeBoss.maxHp?Math.max(0,Math.floor((this.activeBoss.hp/this.activeBoss.maxHp)*100)):0;
+        RPC.set('Boss Fight: '+bname,'HP '+hpPct+'% · LV '+S.level+(this._hardMode?' · Hard':''),false);
+      }else if(!this._trainingMode){
+        RPC.set('In Run','Level '+S.level+' · Kills '+S.kills+(this._hardMode?' · Hard':''),false);
+      }
+    }
     this._setBackgroundMusic(!bossActive,bossActive);
     this._setBossMusic(bossActive,bossActive?(this.activeBoss&&this.activeBoss._bossType&&this.activeBoss._bossType.key)||null:null);
     this._bossSpecialAttacks(time);

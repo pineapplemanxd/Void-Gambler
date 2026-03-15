@@ -1,0 +1,57 @@
+{
+  "name": "void-gambler-electron",
+  "version": "1.0.0",
+  "private": true,
+  "author": "Void Gambler",
+  "description": "Void Gambler desktop build with Discord Rich Presence",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win nsis",
+    "build:portable": "electron-builder --win portable",
+    "build:exe": "electron-packager . \"Void Gambler\" --platform=win32 --arch=x64 --out=dist --overwrite --prune=true"
+  },
+  "dependencies": {
+    "discord-rpc": "^4.0.1",
+    "phaser": "^3.60.0"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3",
+    "electron-packager": "^17.1.2"
+  },
+  "build": {
+    "appId": "com.voidgambler.desktop",
+    "productName": "Void Gambler",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "main.js",
+      "preload.js",
+      "music/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
