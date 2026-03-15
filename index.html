@@ -241,7 +241,7 @@ let G_NOTIFY=null;
 
 const DEFAULTS={
   spd:180,hp:100,maxHp:100,dmg:0,baseDmg:25,
-  fireMs:1000,bSpd:520,pierce:1,bCount:1,
+  fireMs:1000,bSpd:520,pierce:1,bCount:1,baseDmg:25,
   xpMult:1,vacRad:130,
   level:1,xp:0,xpNext:8,kills:0,
   hpRegen:0,lifeSteal:0,
@@ -287,7 +287,7 @@ const STAT_LINES=[
 const GUNS=[
   {id:'elementgun',name:'Elementgun',rarity:'COMMON',tags:'Naval, Gun',fireMs:620,pierce:[2,2,2,2],falloff:.75,resetOnMaterial:true,elemental:true,desc:'Picking up material resets cooldown. Pierces 2 with 25% falloff.'},
   {id:'chain_gun',name:'Chain Gun',rarity:'LEGENDARY',tags:'Legendary, Gun',fireMs:110,pierce:[1,1,1,1],falloff:.5,chainCooldownEvery100:2040,desc:'Every 100 shots, cooldown becomes 2.04s.'},
-  {id:'crossbow',name:'Crossbow',rarity:'RARE',tags:'Precise, Medieval',fireMs:860,pierce:[0,0,0,0],critPierce:[1,2,3,4],falloff:.72,precise:true,desc:'Critical hits gain scaling pierce.'},
+  {id:'crossbow',name:'Crossbow',rarity:'RARE',tags:'Precise, Medieval',fireMs:860,pierce:[0,0,0,0],critPierce:[1,2,3,4],falloff:.72,precise:true,desc:'Critical hits gain scaling pierce. Damage increases with each hit.'},
   {id:'double_barrel',name:'Double Barrel Shotgun',rarity:'UNCOMMON',tags:'Gun',fireMs:900,pellets:6,pierce:[2,2,2,3],falloff:.7,desc:'Wide burst, pierce with 30% damage decay.'},
   {id:'fireball',name:'Fireball',rarity:'UNCOMMON',tags:'Explosive, Elemental',fireMs:760,pierce:[0,0,0,0],explosive:true,burn:true,elemental:true,desc:'Explodes on hit and burns enemies.'},
   {id:'flamethrower',name:'Flamethrower',rarity:'RARE',tags:'Elemental, Heavy',fireMs:95,pierce:[99,99,99,99],fixedDamage:1,burn:true,elemental:true,desc:'Rapid low damage flame stream with burn.'},
@@ -407,6 +407,168 @@ function buildGunUpgrades(){
   }));
 }
 
+const ITEM_POOL_LINES=[
+  'Acid (Tier 2): +8 Max HP, -2% Dodge, -2 Knockback',
+  'Adrenaline (Tier 3): +5% Dodge, 50% chance to heal 5 HP when dodging an attack',
+  'Alien Baby (Tier 3): +15 Max HP, +10% Enemy health',
+  'Alien Eyes (Tier 2): Shoots 6 alien eyes around you every 3 seconds dealing 6 (+50%) damage each',
+  'Alien Magic (Tier 3): +8 Max HP, +3 HP Regeneration, -8 Luck',
+  'Alien Tongue (Tier 1): +30% pickup range, +1 Knockback',
+  'Alien Worm (Tier 1): +3 Max HP, +2 HP Regeneration, -1 HP recovered from consumables',
+  'Alloy (Tier 3): +3 Melee Damage, +3 Ranged Damage, +3 Elemental Damage, +3 Engineering, +5% Crit Chance, -6% Dodge',
+  'Ashes (Tier 4): +20% Damage, +20% Attack Speed, +100 Range, -1 Armor at the end of a wave',
+  'Baby Elephant (Tier 1): 25% chance to deal 1 (25%) damage to a random enemy when you pick up a material',
+  'Baby Gecko (Tier 1): +10 Range, +25% chance to instantly attract a material when it’s dropped',
+  'Baby Squid (Tier 2): +1 HP Regeneration when you level up, -3% Attack Speed',
+  'Bandana (Tier 3): Projectiles pierce through 1 additional target, -10% Damage',
+  'Banner (Tier 2): +20 Range, +10% Attack Speed, -5 Knockback',
+  'Barnacle (Tier 3): +35% stats gained from level upgrades, +1 Curse when you level up',
+  'Bat (Tier 1): +2% Life Steal, -2 Harvesting',
+  'Bean Teacher (Tier 3): +50% XP Gain, -2% Life Steal',
+  'Beanie (Tier 1): +4% Speed, -6 Range',
+  'Big Arms (Tier 4): +12 Melee Damage, +6 Ranged Damage, +3 Knockback, -3% Attack Speed, -3% Speed',
+  'Black Belt (Tier 2): +25% XP Gain, +3 Melee Damage, +3 Knockback, -8 Luck',
+  'Blindfold (Tier 2): +5% Crit Chance, +5% Dodge, -15 Range',
+  'Blood Donation (Tier 3): +40 Harvesting, You take 1 damage per second',
+  'Blood Leech (Tier 2): +2% Life Steal, +2 HP Regeneration, -3 Harvesting',
+  'Boiling Water (Tier 1): +2 Elemental Damage, -1 Max HP',
+  'Book (Tier 1): +1 Engineering',
+  'Bowler Hat (Tier 3): +15 Luck, +18 Harvesting, -5% Attack Speed, -3% Crit Chance',
+  'Boxing Glove (Tier 1): +1 Melee Damage, +3 Knockback',
+  'Broken Mouth (Tier 1): +5 Max HP, -1 HP Regeneration',
+  'Butterfly (Tier 1): +2% Life Steal, -1 Elemental Damage',
+  'Cake (Tier 1): +3 Max HP, -1% Damage',
+  'Campfire (Tier 2): +2 Elemental Damage, +2 HP Regeneration, -2% Speed',
+  'Candle (Tier 3): +4 Elemental Damage, +1 HP Regeneration, -10% Enemies, -5% Damage',
+  'Cape (Tier 4): +5% Life Steal, +20% Dodge, -2 Melee Damage, -2 Ranged Damage, -2 Elemental Damage',
+  'Cauldron (Tier 2): +50% pickup range, +20% Damage for 2 seconds after picking up a consumable, -2 HP Regeneration',
+  'Clover (Tier 3): +20 Luck, +6% Dodge, -2% Life Steal',
+  'Coffee (Tier 1): +10% Attack Speed, -2% Damage',
+  'Cog (Tier 2): +4 Engineering, +1 Knockback, -4% Damage',
+  'Compass (Tier 2): +5% Speed, +3 Engineering, -3% Crit Chance',
+  'Corrupted Shard (Tier 1): +3% Damage, +1 Curse',
+  'Crystal (Tier 3): +5% Attack Speed, +1% Attack Speed every 1 second until wave end, -2 Engineering',
+  'Cute Monkey (Tier 1): +8% chance to heal 1 HP when picking up a material, -1 Ranged Damage',
+  'Cyclops Worm (Tier 2): +12% Damage, -12 Range',
+  'Decomposing Flesh (Tier 2): +1% Life Steal when you level up, -1 Max HP when you level up',
+  'Defective Steroids (Tier 1): +2 Max HP, +2 Melee Damage, -3% Attack Speed',
+  'Diploma (Tier 4): +10 Engineering, +50% XP Gain, -3 Max HP',
+  'Duct Tape (Tier 1): +1 Armor, +1 Engineering, -2 Max HP',
+  'Dynamite (Tier 1): +15% Explosion Damage',
+  'Energy Bracelet (Tier 2): +4% Crit Chance, +2 Elemental Damage, -2 Ranged Damage',
+  'Exoskeleton (Tier 4): +3 Armor, +5% Crit Chance, +5 Engineering, +5% Speed, -2 HP Regeneration, -2% Life Steal',
+  'Explosive Shells (Tier 4): +60% Explosion Damage, +15% Explosion Size, -15% Damage',
+  'Eyepatch (Tier 2): +1 piercing on critical hit, +3% Crit Chance, -10% Accuracy',
+  'Eyes Surgery (Tier 2): Burning activates 20% faster, +1 Elemental Damage, -10 Range',
+  'Feather (Tier 1): +1 Ranged Damage, +3% Dodge, -3% XP Gain',
+  'Fertilizer (Tier 1): +8 Harvesting, -1 Melee Damage',
+  'Fin (Tier 3): +10% Speed, +3% Life Steal, -8 Luck',
+  'Focus (Tier 4): +30% Damage, -3% Attack Speed for every different weapon you have',
+  'Fresh Meat (Tier 1): +2% Life Steal, -1 HP Regeneration',
+  'Fuel Tank (Tier 2): +4 Elemental Damage, -1 Melee Damage, -1 Ranged Damage',
+  'Gambling Token (Tier 2): +8% Dodge, -1 Armor',
+  'Ghost Outfit (Tier 3): Dodge capped at 70%, +10% Dodge, -5% Speed, -3 Armor',
+  'Glasses (Tier 1): +20 Range',
+  'Glass Cannon (Tier 3): +25% Damage, -3 Armor',
+  'Goat Skull (Tier 1): +3 Melee Damage, -2% Crit Chance',
+  'Gummy Berserker (Tier 1): +5% Attack Speed, +25 Range, -1 Armor',
+  'Handcuffs (Tier 3): +8 Melee Damage, +8 Ranged Damage, +8 Elemental Damage, Max HP capped at current value',
+  'Head Injury (Tier 1): +6% Damage, -8 Range',
+  'Heavy Bullets (Tier 4): +5 Ranged Damage, +10% Damage, +10 Range, -5% Attack Speed, -5% Crit Chance',
+  'Helmet (Tier 1): +1 Armor, -2% Speed',
+  'Hunting Trophy (Tier 3): 33% chance to gain 1 material on crit kill',
+  'Injection (Tier 1): +7% Damage, -2 Max HP',
+  'Insanity (Tier 1): +6% Crit Chance, -3% Damage',
+  'Jelly (Tier 1): +1 Max HP for every different weapon you have',
+  'Jet Pack (Tier 4): +15% Speed, +10% Dodge, -5 Max HP, -1 Armor',
+  'Lemonade (Tier 1): +1 HP recovered from consumables',
+  'Lens (Tier 1): +1 Ranged Damage, -5 Range',
+  'Little Frog (Tier 2): +20% pickup range, +10 Harvesting, -3% Dodge',
+  'Lucky Charm (Tier 3): +30 Luck, -2 Melee Damage, -1 Ranged Damage',
+  'Lucky Coin (Tier 4): +2 Luck for every 1% Crit Chance, -2 Armor',
+  'Mammoth (Tier 4): +20 Melee Damage, +5 HP Regeneration, -8% Damage, -3% Speed',
+  'Mastery (Tier 2): +6 Melee Damage, -3 Ranged Damage',
+  'Medal (Tier 2): +3 Max HP, +3% Damage, +1 Armor, +3% Speed, -4% Crit Chance',
+  'Medikit (Tier 4): +10 HP Regeneration, -10 Luck',
+  'Metal Detector (Tier 2): +6 Luck, +2 Engineering, -5% Damage',
+  'Metal Plate (Tier 2): +2 Armor, -3% Damage',
+  'Missile (Tier 2): +10% Damage, -4% Attack Speed',
+  'Mouse (Tier 3): +5% Life Steal, +10% Enemies, -5 Harvesting',
+  'Mushroom (Tier 1): +3 HP Regeneration, -2 Luck',
+  'Mutation (Tier 1): +1 Ranged Damage, +1 Elemental Damage, -3 Knockback',
+  'Night Goggles (Tier 4): +15% Crit Chance, +50 Range, -3 Max HP, -1 Armor',
+  'Octopus (Tier 4): +12 Max HP, +5 HP Regeneration, +3% Life Steal, -8% Crit Chance',
+  'Padding (Tier 2): +3 Max HP',
+  'Panda (Tier 4): +12 Max HP, +25 Luck, -5% Damage',
+  'Pencil (Tier 1): +2 Engineering, -1% Attack Speed, -1% Crit Chance',
+  'Plant (Tier 1): +3 HP Regeneration, -1% Life Steal',
+  'Poisonous Tonic (Tier 3): +10% Attack Speed, +5% Crit Chance, +15 Range, -2 HP Regeneration',
+  'Potato (Tier 4): +3 Max HP, +2 HP Regeneration, +1% Life Steal, +5% Damage, +5% Attack Speed, +3% Speed, +3% Dodge, +1 Armor, +5 Luck',
+  'Propeller Hat (Tier 1): +10 Luck, -2% Damage',
+  'Regeneration Potion (Tier 4): +3 HP Regeneration',
+  'Reinforced Steel (Tier 2): +2 Ranged Damage, +3 Engineering, -3% Speed',
+  'Ritual (Tier 2): +6% Damage, +2% Life Steal, -2 Engineering',
+  'Sad Tomato (Tier 3): +8 HP Regeneration',
+  'Scar (Tier 1): +20% XP Gain, -8 Range',
+  'Scared Sausage (Tier 1): Attacks have a 25% chance to deal burning damage',
+  'Scope (Tier 2): +2 Ranged Damage, +25 Range, -7% Attack Speed',
+  'Sharp Bullet (Tier 1): +1 pierce, -5% Damage',
+  'Shmoop (Tier 3): +6 Max HP, +2 HP Regeneration, -2 Melee Damage, -1 Ranged Damage',
+  'Snail (Tier 2): -8% Enemy Speed, -3% Speed',
+  'Snake (Tier 1): Burning spreads to additional nearby enemy, -1 Max HP',
+  'Spicy Sauce (Tier 2): +3 Max HP',
+  'Spider (Tier 4): +12% Damage, +6% Attack Speed for every different weapon, -3% Dodge, -5 Harvesting',
+  'Statue (Tier 3): +40% Attack Speed while standing still, -10% Speed',
+  'Stone Skin (Tier 3): +1 Max HP for every 1 Armor, -6% Attack Speed',
+  'Sunglasses (Tier 2): +10% Crit Chance, -1 Armor',
+  'Tentacle (Tier 2): +3% Crit Chance',
+  'Terrified Onion (Tier 1): +4% Speed, -5 Luck',
+  'Toolbox (Tier 3): +6 Engineering, -8% Attack Speed',
+  'Toxic Sludge (Tier 1): +2 Elemental Damage, -2% Dodge',
+  'Tractor (Tier 3): +40 Harvesting, -8% Damage',
+  'Warrior Helmet (Tier 3): +3 Armor, +5 Max HP, -5% Speed',
+  'Wheat (Tier 3): +4 Melee Damage, +2 Ranged Damage, +10 Harvesting, -2 Elemental Damage',
+  'Wheelbarrow (Tier 2): +16 Harvesting, -1 Armor',
+  'Whetstone (Tier 2): +4% Life Steal, -3 Knockback',
+  'Wings (Tier 3): +10% Speed, +30 Range, -2 Elemental Damage',
+  'Wisdom (Tier 3): +5% Damage every 5s until wave end, -15% Damage',
+  'Wolf Helmet (Tier 4): +10 Elemental Damage, +20 Luck, -5 Engineering'
+];
+
+function _itemR(t){return t===1?'COMMON':t===2?'UNCOMMON':t===3?'RARE':'EPIC';}
+function _applyStatToken(token){
+  const m=token.match(/([+-]\d+)(%?)\s*(Max HP|HP Regeneration|Life Steal|Damage|Melee Damage|Ranged Damage|Elemental Damage|Attack Speed|Crit Chance|Engineering|Range|Armor|Dodge|Speed|Luck|Harvesting)/i);
+  if(!m)return;
+  const v=parseInt(m[1],10);
+  const key=m[3].toLowerCase();
+  if(key==='max hp'){S.maxHp+=v;S.hp=Math.min(S.maxHp,S.hp+Math.max(0,v));}
+  else if(key==='hp regeneration')S.hpRegen+=v;
+  else if(key==='life steal')S.lifeSteal+=v;
+  else if(key==='damage')S.dmg+=v;
+  else if(key==='melee damage')S.meleeDmg+=v;
+  else if(key==='ranged damage')S.rangedDmg+=v;
+  else if(key==='elemental damage')S.elementalDmg+=v;
+  else if(key==='attack speed')S.attackSpeed+=v;
+  else if(key==='crit chance')S.critChance+=v;
+  else if(key==='engineering')S.engineering+=v;
+  else if(key==='range')S.range+=v;
+  else if(key==='armor')S.armor+=v;
+  else if(key==='dodge')S.dodge+=v;
+  else if(key==='speed')S.spd=Math.max(0,S.spd+Math.floor(DEFAULTS.spd*(v/100)));
+  else if(key==='luck')S.luck+=v;
+  else if(key==='harvesting')S.harvesting+=v;
+}
+function applyItemEffects(desc){
+  desc.split(',').forEach(t=>_applyStatToken(t.trim()));
+}
+function buildItemUpgrades(){
+  return ITEM_POOL_LINES.map(line=>{
+    const m=line.match(/^(.+?)\s*\(Tier\s*(\d)\):\s*(.+)$/i);
+    const name=m?m[1].trim():line, tier=m?parseInt(m[2],10):1, desc=m?m[3].trim():line;
+    return{icon:'🎒',r:_itemR(tier),item:true,name,desc,weight:1.05,fn:()=>applyItemEffects(desc)};
+  });
+}
+
 const LEGACY_UPGRADES=[
   {icon:'✨',r:'EPIC',name:'Double XP',desc:'Every gem grants 2x experience.',fn:()=>{S.xpMult*=2;}},
   {icon:'🌀',r:'UNCOMMON',name:'Wider Vacuum',desc:'Attract gems from further away.',fn:()=>{S.vacRad+=100;}},
@@ -431,7 +593,7 @@ const LEGACY_UPGRADES=[
   {icon:'💢',r:'RARE',weapon:true,name:'Void Shotgun II',desc:'10 pellets, faster reload.',fn:()=>{S.shotgunLevel=2;S.shotgunDmg+=15;},prereq:()=>S.shotgunLevel===1},
 ];
 
-const UPGRADES=[...buildStatTierUpgrades(),...buildGunUpgrades(),...LEGACY_UPGRADES];
+const UPGRADES=[...buildStatTierUpgrades(),...buildGunUpgrades(),...buildItemUpgrades(),...LEGACY_UPGRADES];
 
 /* Spawn curve: very few early, swarm late */
 function waveSize(){const lv=S.level;return Math.max(1,Math.round(0.055*lv*lv+0.2*lv+0.75));}
@@ -576,6 +738,11 @@ class GameScene extends Phaser.Scene{
     BOSS_TYPES.forEach(b=>mk(b.key,b.w,b.h,b.draw));
     mk('e_mini',13,13,g=>{g.fillStyle(0x771111);g.fillRect(0,0,13,13);g.fillStyle(0xaa1111);g.fillRect(1,1,11,11);g.fillStyle(0xff3333,.5);g.fillRect(3,3,4,4);});
     mk('bullet',15,5,g=>{g.fillStyle(0xddddff);g.fillRect(0,0,15,5);g.fillStyle(0xffffff);g.fillRect(0,1,11,3);});
+    mk('bullet_laser',18,4,g=>{g.fillStyle(0x66ccff);g.fillRect(0,0,18,4);g.fillStyle(0xccf5ff);g.fillRect(0,1,14,2);});
+    mk('bullet_fire',12,12,g=>{g.fillStyle(0xaa2200);g.fillCircle(6,6,6);g.fillStyle(0xff6600);g.fillCircle(6,6,4);g.fillStyle(0xffcc44);g.fillCircle(6,6,2);});
+    mk('bullet_ice',14,6,g=>{g.fillStyle(0x66ccff);g.fillTriangle(0,3,10,0,10,6);g.fillStyle(0xbbeeff);g.fillRect(10,1,4,4);});
+    mk('bullet_arc',14,8,g=>{g.fillStyle(0xaa88ff);g.fillRect(0,2,12,4);g.fillStyle(0xddccff);g.fillRect(2,0,8,8);});
+    mk('bullet_shuriken',12,12,g=>{g.fillStyle(0xb0c0d0);g.fillTriangle(6,0,8,6,6,4);g.fillTriangle(12,6,6,8,8,6);g.fillTriangle(6,12,4,6,6,8);g.fillTriangle(0,6,6,4,4,6);g.fillStyle(0x334455);g.fillCircle(6,6,2);});
     mk('pellet',9,9,g=>{g.fillStyle(0xff9944);g.fillRect(0,0,9,9);g.fillStyle(0xffcc88,.8);g.fillRect(1,1,7,7);});
     mk('missile',20,8,g=>{g.fillStyle(0xaa00cc);g.fillRect(0,0,20,8);g.fillStyle(0xdd44ff);g.fillRect(0,1,15,6);g.fillStyle(0xffffff,.75);g.fillRect(0,2,8,4);});
     mk('gem',10,10,g=>{g.fillStyle(0xbb8800);g.fillRect(0,0,10,10);g.fillStyle(0xffcc00);g.fillRect(1,1,8,8);g.fillStyle(0xffffff,.55);g.fillRect(2,2,3,3);});
@@ -677,7 +844,7 @@ class GameScene extends Phaser.Scene{
 
   _baseGunDelay(g){
     const speedMult=Math.max(.35,1-(S.attackSpeed/100));
-    return Math.max(70,Math.floor(g.fireMs*speedMult));
+    return Math.max(83,Math.floor(g.fireMs*speedMult));
   }
 
   _syncGunTimers(){
@@ -695,9 +862,9 @@ class GameScene extends Phaser.Scene{
   }
 
   _projectileDamageBase(g,isElemental,isMelee){
-    const fixed=typeof g.fixedDamage==='number'?g.fixedDamage:S.dmg;
+    const fixed=typeof g.fixedDamage==='number'?g.fixedDamage:S.baseDmg;
     const typeBonus=isMelee?S.meleeDmg:(isElemental?S.elementalDmg:S.rangedDmg);
-    return fixed+typeBonus;
+    return Math.max(1,(fixed+typeBonus)*(1+S.dmg/100));
   }
 
   _applyGunCooldown(g,gunId){
@@ -713,8 +880,15 @@ class GameScene extends Phaser.Scene{
   _spawnGunBullet(px,py,angle,g,opts={}){
     const b=this.bullets.getFirstDead(true,px,py,'bullet');
     if(!b)return;
+    const tex=({
+      laser_gun:'bullet_laser',gatling_laser:'bullet_laser',particle_acc:'bullet_laser',
+      fireball:'bullet_fire',wand:'bullet_fire',flamethrower:'bullet_fire',
+      icicle:'bullet_ice',crossbow:'bullet_ice',
+      shuriken:'bullet_shuriken',
+      ghost_scepter:'bullet_arc',flute:'bullet_arc',taser:'bullet_arc'
+    })[g.id]||'bullet';
     const tier=this._gunTier(g);
-    b.setPosition(px,py).setActive(true).setVisible(true).setDepth(7).setRotation(angle);
+    b.setTexture(tex).setPosition(px,py).setActive(true).setVisible(true).setDepth(7).setRotation(angle);
     b.body.enable=true;b.body.reset(px,py);
     b.hitSet=new Set();
     b.curved=S.curvedBullets||!!opts.curved;
@@ -738,7 +912,7 @@ class GameScene extends Phaser.Scene{
     b.charmThreshold=(g.charmThreshold&&g.charmThreshold[tier-1])||0;
     b.critBounce=(g.critBounce&&g.critBounce[tier-1])||0;
     b.engineeringSlow=!!g.engSlow;
-    b.rangeScale=1+S.range/100;
+    b.rangeScale=Math.max(.25,(100+S.range)/100);
     const spd=(S.bSpd*(opts.speedMul||1))*b.rangeScale;
     this.physics.velocityFromAngle(Phaser.Math.RadToDeg(angle),spd,b.body.velocity);
   }
@@ -856,7 +1030,7 @@ class GameScene extends Phaser.Scene{
     bullet.pierceLeft--;
     enemy.setTint(0xffffff);this.time.delayedCall(65,()=>{if(enemy.active)enemy.clearTint();});
     this._dmgPop(enemy.x,enemy.y-12,dmg,crit?'#ffd166':'#ffffaa');SFX.hit();
-    if(S.lifeSteal>0){S.hp=Math.min(S.maxHp,S.hp+Math.max(0.2,dmg*(S.lifeSteal*.003)));}
+    if(S.lifeSteal>0){const now=this.time.now;if(now>(this._lastLsProc||0)+100&&Math.random()<(Math.max(0,S.lifeSteal)/100)){S.hp=Math.min(S.maxHp,S.hp+1);this._lastLsProc=now;}}
     if(bullet.healOnHit){S.hp=Math.min(S.maxHp,S.hp+bullet.healOnHit);}
     if(bullet.burn){enemy.burnUntil=this.time.now+2600;enemy.burnTick=this.time.now+300;enemy.burnDmg=Math.max(1,Math.floor((S.elementalDmg+S.dmg*.2)*.2));}
     if(bullet.slowRadius)this._applyAreaSlow(enemy.x,enemy.y,120,.75,2200);
@@ -1033,9 +1207,10 @@ class GameScene extends Phaser.Scene{
 
   _playerTakeDamage(dmg){
     if(this.iframes)return;
-    if(Math.random()<Math.min(.6,S.dodge/100)){this._notify('DODGE','#88ffaa');return;}
+    if(Math.random()<Math.min(S.dodgeCap/100,Math.max(0,S.dodge/100))){this._notify('DODGE','#88ffaa');return;}
     if(S.shielded){S.shielded=false;this.shieldCircle.setVisible(false);SFX.shield();this._notify('\uD83D\uDEE1\uFE0F SHIELD BLOCKED!','#4488ff');this.cameras.main.shake(70,.005);this.iframes=true;this.time.delayedCall(500,()=>{this.iframes=false;});return;}
-    const reduced=Math.max(1,Math.floor(dmg-Math.floor(S.armor*.8)));
+    const a=S.armor,mult=a>=0?(1/(1+a*0.0666)):(1+Math.abs(a)*0.0666);
+    const reduced=Math.max(1,Math.floor(dmg*mult));
     S.hp=Math.max(0,S.hp-reduced);this._updateHUD();
     this.cameras.main.shake(160,.011);
     this.iframes=true;this.time.delayedCall(750,()=>{this.iframes=false;});
@@ -1147,7 +1322,18 @@ class GameScene extends Phaser.Scene{
       }
       return !u.prereq||u.prereq();
     });
-    const choices=Phaser.Utils.Array.Shuffle([...eligible]).slice(0,3);
+    const pickWeighted=(arr,n)=>{
+      const pool=[...arr],out=[];
+      while(pool.length&&out.length<n){
+        const total=pool.reduce((s,x)=>s+(x.weight||1),0);
+        let r=Math.random()*total,idx=0;
+        for(;idx<pool.length;idx++){r-=(pool[idx].weight||1);if(r<=0)break;}
+        out.push(pool[Math.min(idx,pool.length-1)]);
+        pool.splice(Math.min(idx,pool.length-1),1);
+      }
+      return out;
+    };
+    const choices=pickWeighted(eligible,6);
     document.getElementById('ov-eyebrow').textContent='void gambler';
     document.getElementById('ov-title').textContent='LEVEL '+S.level;
     document.getElementById('ov-sub').textContent='choose your power';
@@ -1244,9 +1430,11 @@ class GameScene extends Phaser.Scene{
       if(S.frenzyActive)effects.push('Frenzy');
       if(S.curvedBullets)effects.push('Curved Bullets');
       if(S.chillAura)effects.push('Chill Aura');
-      if(S.deathExp)effects.push('Death Explosion');
       if(S.vampHeal>0)effects.push('Vampiric '+S.vampHeal);
-      spEffects.innerHTML=effects.length?effects.map(e=>'<span class="sp-pill">'+e+'</span>').join(''):'<span class="sp-pill">No active effects</span>';
+      const all=(S.upgradesPicked||[]).slice(0,30);
+      const fx=effects.length?effects.map(e=>'<span class="sp-pill">FX: '+e+'</span>').join(''):'<span class="sp-pill">FX: none</span>';
+      const ups=all.length?all.map(e=>'<span class="sp-pill">UP: '+e+'</span>').join(''):'<span class="sp-pill">UP: none</span>';
+      spEffects.innerHTML=fx+ups;
     }
     const spGun=document.getElementById('sp-gun');
     if(spGun)spGun.innerHTML='<span class="sp-pill">'+cg.name+'</span><span class="sp-pill">Tier '+tier+'</span><span class="sp-pill">'+cg.tags+'</span><span class="sp-pill">Slots '+S.loadout.length+'/'+S.maxWeapons+'</span>';
@@ -1382,7 +1570,7 @@ class GameScene extends Phaser.Scene{
     if(this._pGlow)this._pGlow.outerStrength=8+Math.sin(time*.0025)*5;
     // HUD time
     const secs=Math.floor((time-this.startTime)/1000);
-    if(S.hpRegen>0&&time-this._regenTick>1000){this._regenTick=time;S.hp=Math.min(S.maxHp,S.hp+S.hpRegen);}
+    if(S.hpRegen>0){const dt=Math.max(0,(time-(this._regenTick||time))/1000);this._regenTick=time;const rps=0.2+Math.max(0,S.hpRegen-1)*0.089;this._regenAcc=(this._regenAcc||0)+rps*dt;if(this._regenAcc>=1){const heal=Math.floor(this._regenAcc);S.hp=Math.min(S.maxHp,S.hp+heal);this._regenAcc-=heal;}}else this._regenTick=time;
     document.getElementById('h-time').textContent='\u23F1 '+Math.floor(secs/60)+':'+(secs%60).toString().padStart(2,'0');
     if(S.kills!==this._prevKills){this._prevKills=S.kills;document.getElementById('h-kills').textContent='\u2620 '+S.kills+' kills';}
   }
