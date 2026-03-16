@@ -46,6 +46,7 @@ function sanitizeBullet(b) {
     y: safeNum(b.y, 0, 4000, 0),
     vx: safeNum(b.vx, -5000, 5000, 0),
     vy: safeNum(b.vy, -5000, 5000, 0),
+    dmg: safeNum(b.dmg, 1, 99999, 1),
     tint: safeNum(b.tint, 0, 0xffffff, 0xffffff),
     scale: Math.max(0.3, Math.min(2.5, Number(b.scale) || 1)),
   };
@@ -63,6 +64,7 @@ function sanitizeWorldEntity(e, isBoss) {
     y: safeNum(e.y, 0, 4000, 0),
     hp: safeNum(e.hp, 0, 999999, 1),
     maxHp: safeNum(e.maxHp, 1, 999999, 1),
+    dmg: safeNum(e.dmg, 1, 99999, isBoss ? 26 : 10),
   };
   if (isBoss) {
     out.phase2 = !!e.phase2;

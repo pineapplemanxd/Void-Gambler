@@ -976,6 +976,7 @@ class GameScene extends Phaser.Scene{
     this._mpRemoteBullets=new Map();
     this._mpRemoteEnemies=new Map();
     this._mpRemoteBosses=new Map();
+    this._mpHostBulletApplied=new Map();
     this._mpServer=this._sanitizeServer(MULTI_CFG.server);
     this._mpNick=this._sanitizeNick(MULTI_CFG.nick);
     this._mpLabel=this.add.text(12,GH-12,'MP: connecting...',{fontSize:'12px',fontFamily:'"Share Tech Mono","Courier New",monospace',color:'#8ec8ff',stroke:'#000',strokeThickness:3}).setScrollFactor(0).setDepth(60).setOrigin(0,1);
@@ -1102,12 +1103,41 @@ class GameScene extends Phaser.Scene{
       else obj.shape.setTint(tint);
       if(obj.shape.setRotation)obj.shape.setRotation(Math.atan2(vy,vx));
     }
+    if(this._mpIsHost)this._mpApplyRemoteBulletHits(playerId,list);
     this._mpRemoteBullets.forEach((obj,key)=>{
       if(!key.startsWith(playerId+':'))return;
       if(seen.has(key))return;
       if(obj&&obj.shape)obj.shape.destroy();
       this._mpRemoteBullets.delete(key);
     });
+  }
+
+  _mpApplyRemoteBulletHits(playerId,list){
+    const now=this.time.now;
+    this._mpHostBulletApplied.forEach((ts,key)=>{if(now-ts>12000)this._mpHostBulletApplied.delete(key);});
+    for(let i=0;i<list.length&&i<90;i++){
+      const b=list[i]||{};
+      const rid=String(b.rid||'').trim();
+      if(!rid)continue;
+      const bulletKey=playerId+':'+rid;
+      if(this._mpHostBulletApplied.has(bulletKey))continue;
+      const x=Number(b.x)||0,y=Number(b.y)||0;
+      const kind=(b.kind==='m'?'m':(b.kind==='p'?'p':'b'));
+      const hitR=kind==='m'?56:(kind==='p'?16:20);
+      let target=null,near=Infinity;
+      this.enemies.getChildren().forEach(e=>{
+        if(!e||!e.active)return;
+        const d=Phaser.Math.Distance.Between(x,y,e.x,e.y);
+        if(d<hitR&&d<near){near=d;target=e;}
+      });
+      if(!target)continue;
+      const dmg=Math.max(1,Math.min(99999,Math.floor(Number(b.dmg)||Math.max(2,Math.floor(S.dmg*0.35)))));
+      target.hp=(target.hp||1)-dmg;
+      this._dmgPop(target.x,target.y-10,dmg,'#88ddff');
+      if(target._isBoss)this._updateBossBar();
+      if(target.hp<=0)this._killEnemy(target);
+      this._mpHostBulletApplied.set(bulletKey,now);
+    }
   }
 
   _mpClearRemoteBulletsFor(playerId){
@@ -1133,6 +1163,7 @@ class GameScene extends Phaser.Scene{
           y:Math.round(p.y),
           vx:Math.round(p.body.velocity.x||0),
           vy:Math.round(p.body.velocity.y||0),
+          dmg:Math.max(1,Math.round(p.baseDmg||S.dmg||1)),
           tint:Number.isFinite(p.tintTopLeft)?(p.tintTopLeft>>>0):0xffffff,
           scale:Number(p.scaleX||1),
         });
@@ -1154,7 +1185,7 @@ class GameScene extends Phaser.Scene{
     this.enemies.getChildren().forEach(e=>{
       if(!e||!e.active)return;
       if(!e._mpRid)e._mpRid=this._mpAllocRid(e._isBoss?'bo':'en');
-      const row={rid:e._mpRid,key:String((e.etype&&e.etype.key)||'enemy'),x:Math.round(e.x),y:Math.round(e.y),hp:Math.max(0,Math.round(e.hp||0)),maxHp:Math.max(1,Math.round(e.maxHp||1))};
+      const row={rid:e._mpRid,key:String((e.etype&&e.etype.key)||'enemy'),x:Math.round(e.x),y:Math.round(e.y),hp:Math.max(0,Math.round(e.hp||0)),maxHp:Math.max(1,Math.round(e.maxHp||1)),dmg:Math.max(1,Math.round((e.etype&&e.etype.dmg)||10))};
       if(e._isBoss){
         if(world.bosses.length<10){
           row.phase2=!!e._phase2;
@@ -1184,37 +1215,76 @@ class GameScene extends Phaser.Scene{
     const seenB=new Set();
     const enemies=Array.isArray(world.enemies)?world.enemies:[];
     const bosses=Array.isArray(world.bosses)?world.bosses:[];
+    let bossRef=null;
     for(let i=0;i<enemies.length&&i<140;i++){
       const e=enemies[i]||{};
       const rid=String(e.rid||('e'+i));
       seenE.add(rid);
-      let obj=this._mpRemoteEnemies.get(rid);
-      if(!obj){
-        const body=this.add.circle(0,0,8,0xff3344,.26).setDepth(4).setStrokeStyle(1,0xff6677,.9);
-        obj={body};
-        this._mpRemoteEnemies.set(rid,obj);
+      let sp=this._mpRemoteEnemies.get(rid);
+      if(!sp){
+        sp=this.enemies.getFirstDead(true,Number(e.x)||0,Number(e.y)||0,String(e.key||'e_grunt'));
+        if(!sp)continue;
+        this._mpRemoteEnemies.set(rid,sp);
       }
-      obj.body.setPosition(Number(e.x)||0,Number(e.y)||0).setVisible(true);
+      const et=ENEMY_TYPES.find(t=>t.key===String(e.key||''))||ENEMY_TYPES[0];
+      const x=Number(e.x)||0,y=Number(e.y)||0;
+      sp.setTexture(et.key).setPosition(x,y).setActive(true).setVisible(true).setDepth(5).setScale(1).clearTint().setAlpha(1);
+      if(sp.body){
+        sp.body.enable=true;
+        sp.body.reset(x,y);
+        sp.body.setVelocity(0,0);
+        if(et.w&&et.h)sp.body.setSize(et.w,et.h,true);
+      }
+      sp._isBoss=false;
+      sp._mini=false;
+      sp.etype={key:et.key,w:et.w,h:et.h,dmg:Math.max(1,Math.round(Number(e.dmg)||10)),special:et.special};
+      sp.hp=Math.max(0,Math.round(Number(e.hp)||0));
+      sp.maxHp=Math.max(1,Math.round(Number(e.maxHp)||1));
+      sp._mpRid=rid;
     }
     for(let i=0;i<bosses.length&&i<10;i++){
       const b=bosses[i]||{};
       const rid=String(b.rid||('b'+i));
       seenB.add(rid);
-      let obj=this._mpRemoteBosses.get(rid);
-      if(!obj){
-        const body=this.add.circle(0,0,24,0xff2266,.22).setDepth(6).setStrokeStyle(2,0xff77aa,.95);
-        const txt=this.add.text(0,0,'',{fontSize:'11px',fontFamily:'"Share Tech Mono","Courier New",monospace',color:'#ffd8e8',stroke:'#000',strokeThickness:3}).setDepth(7).setOrigin(.5,1);
-        obj={body,txt};
-        this._mpRemoteBosses.set(rid,obj);
+      let sp=this._mpRemoteBosses.get(rid);
+      if(!sp){
+        const key=String(b.key||'boss_void');
+        sp=this.enemies.getFirstDead(true,Number(b.x)||0,Number(b.y)||0,key);
+        if(!sp)continue;
+        this._mpRemoteBosses.set(rid,sp);
       }
+      const bt=BOSS_TYPES.find(v=>v.key===String(b.key||''))||BOSS_TYPES[0];
       const x=Number(b.x)||0,y=Number(b.y)||0;
-      const hp=Math.max(0,Number(b.hp)||0),maxHp=Math.max(1,Number(b.maxHp)||1);
-      const pct=Math.floor((hp/maxHp)*100);
-      obj.body.setPosition(x,y).setRadius((b.phase2?28:24)).setVisible(true);
-      obj.txt.setPosition(x,y-30).setText(String(b.name||b.key||'Boss')+' '+pct+'%').setVisible(true);
+      sp.setTexture(bt.key).setPosition(x,y).setActive(true).setVisible(true).setDepth(6).setScale(1).clearTint().setAlpha(1);
+      if(sp.body){
+        sp.body.enable=true;
+        sp.body.reset(x,y);
+        sp.body.setVelocity(0,0);
+        if(bt.w&&bt.h)sp.body.setSize(bt.w,bt.h,true);
+      }
+      sp._isBoss=true;
+      sp._bossType=bt;
+      sp._phase2=!!b.phase2;
+      sp.etype={key:bt.key,w:bt.w,h:bt.h,dmg:Math.max(1,Math.round(Number(b.dmg)||26)),special:'boss'};
+      sp.hp=Math.max(0,Math.round(Number(b.hp)||0));
+      sp.maxHp=Math.max(1,Math.round(Number(b.maxHp)||1));
+      sp._mpRid=rid;
+      if(!bossRef)bossRef=sp;
     }
-    this._mpRemoteEnemies.forEach((obj,id)=>{if(seenE.has(id))return;obj.body.destroy();this._mpRemoteEnemies.delete(id);});
-    this._mpRemoteBosses.forEach((obj,id)=>{if(seenB.has(id))return;obj.body.destroy();obj.txt.destroy();this._mpRemoteBosses.delete(id);});
+    this._mpRemoteEnemies.forEach((sp,id)=>{
+      if(seenE.has(id))return;
+      sp.setActive(false).setVisible(false);
+      if(sp.body){sp.body.enable=false;sp.body.setVelocity(0,0);}sp.setPosition(-9999,-9999);
+      this._mpRemoteEnemies.delete(id);
+    });
+    this._mpRemoteBosses.forEach((sp,id)=>{
+      if(seenB.has(id))return;
+      sp.setActive(false).setVisible(false);
+      if(sp.body){sp.body.enable=false;sp.body.setVelocity(0,0);}sp.setPosition(-9999,-9999);
+      this._mpRemoteBosses.delete(id);
+    });
+    this.activeBoss=bossRef;
+    this._updateBossBar();
   }
 
   _mpApplySharedProgress(progress){
@@ -1253,8 +1323,8 @@ class GameScene extends Phaser.Scene{
       try{ws.send(JSON.stringify({type:'world',world:this._mpCollectWorldState()}));}catch(e){}
     }
     if(!this._mpIsHost&&this._mpRemoteWorldAt&&time-this._mpRemoteWorldAt>4500){
-      this._mpRemoteEnemies.forEach((obj)=>{if(obj&&obj.body)obj.body.setVisible(false);});
-      this._mpRemoteBosses.forEach((obj)=>{if(obj&&obj.body)obj.body.setVisible(false);if(obj&&obj.txt)obj.txt.setVisible(false);});
+      this._mpRemoteEnemies.forEach((sp)=>{if(sp)sp.setVisible(false);});
+      this._mpRemoteBosses.forEach((sp)=>{if(sp)sp.setVisible(false);});
       if(this._mpModeLabel)this._mpModeLabel.setVisible(false);
     }
   }
@@ -1273,15 +1343,16 @@ class GameScene extends Phaser.Scene{
       this._mpRemoteBullets.clear();
     }
     if(this._mpRemoteEnemies){
-      this._mpRemoteEnemies.forEach(obj=>{try{if(obj&&obj.body)obj.body.destroy();}catch(e){}});
+      this._mpRemoteEnemies.forEach(sp=>{try{if(sp)sp.destroy();}catch(e){}});
       this._mpRemoteEnemies.clear();
     }
     if(this._mpRemoteBosses){
-      this._mpRemoteBosses.forEach(obj=>{try{if(obj&&obj.body)obj.body.destroy();if(obj&&obj.txt)obj.txt.destroy();}catch(e){}});
+      this._mpRemoteBosses.forEach(sp=>{try{if(sp)sp.destroy();}catch(e){}});
       this._mpRemoteBosses.clear();
     }
     if(this._mpLabel){this._mpLabel.destroy();this._mpLabel=null;}
     if(this._mpModeLabel){this._mpModeLabel.destroy();this._mpModeLabel=null;}
+    if(this._mpHostBulletApplied)this._mpHostBulletApplied.clear();
     this._mpPendingLevelUps=0;
   }
 
@@ -1991,6 +2062,7 @@ class GameScene extends Phaser.Scene{
   }
 
   _onBulletHit(bullet,enemy){
+    if(this._mpEnabled&&!this._mpIsHost)return;
     if(this.gamePaused)return;if(!bullet.active)return;if(!enemy.active)return;
     if(!bullet.hitSet)return;if(bullet.hitSet.has(enemy))return;
     if(enemy._isBoss){enemy.invulnerable=false;enemy.invulnUntil=0;}
@@ -2033,6 +2105,7 @@ class GameScene extends Phaser.Scene{
   }
 
   _onMissileHit(missile,enemy){
+    if(this._mpEnabled&&!this._mpIsHost)return;
     if(this.gamePaused)return;if(!missile.active)return;if(!enemy.active)return;
     if(!missile.hitSet)return;if(missile.hitSet.has(enemy))return;
     if(enemy._isBoss){enemy.invulnerable=false;enemy.invulnUntil=0;}
@@ -2761,6 +2834,13 @@ class GameScene extends Phaser.Scene{
         const dx=px-it.x,dy=py-it.y,d=Math.hypot(dx,dy)||1;
         if(d<22){this._collectDrop(it);return;}
         if(d<160)it.body.setVelocity((dx/d)*85,(dy/d)*85);else it.body.setVelocity(0,0);
+      });
+    }else{
+      this.enemies.getChildren().forEach(e=>{
+        if(!e||!e.active)return;
+        const dx=px-e.x,dy=py-e.y,dist=Math.hypot(dx,dy)||1;
+        const hitR=(e.etype&&e.etype.w/2||11)+14;
+        if(dist<hitR&&!this.iframes)this._playerTakeDamage((e.etype&&e.etype.dmg)||10);
       });
     }
     // Curved bullets
