@@ -970,6 +970,8 @@ class GameScene extends Phaser.Scene{
     this._mpWorldSendAt=0;
     this._mpRidSeq=0;
     this._mpRemoteWorldAt=0;
+    this._mpPendingLevelUps=0;
+    this._mpSimAuthority=true;
     this._mpRemotePlayers=new Map();
     this._mpRemoteBullets=new Map();
     this._mpRemoteEnemies=new Map();
@@ -1042,6 +1044,33 @@ class GameScene extends Phaser.Scene{
     }
     if(prev!==this._mpIsHost&&this._mpLocalId){
       this._notify(this._mpIsHost?'YOU ARE THE HOST':'CONNECTED TO HOST','#7fd1ff');
+    }
+    this._mpApplySimulationRole();
+  }
+
+  _mpApplySimulationRole(){
+    if(!this._mpEnabled)return;
+    const shouldSim=!!this._mpIsHost;
+    if(this._mpSimAuthority===shouldSim)return;
+    this._mpSimAuthority=shouldSim;
+    if(!shouldSim){
+      if(this.spawnTimer){this.spawnTimer.remove(false);this.spawnTimer=null;}
+      this._clearBossLasers();
+      this.activeBoss=null;
+      document.getElementById('boss-bar-wrap').style.display='none';
+      [this.enemies,this.gems,this.drops,this.bossShots].forEach(group=>{
+        if(!group)return;
+        group.getChildren().forEach(obj=>{
+          if(!obj||!obj.active)return;
+          obj.setActive(false).setVisible(false);
+          if(obj.body){obj.body.enable=false;obj.body.setVelocity(0,0);}obj.setPosition(-9999,-9999);
+        });
+      });
+      return;
+    }
+    if(!this._trainingMode&&!this.spawnTimer)this.spawnTimer=this._mkTimer(spawnInterval(),this._spawnWave);
+    if(this._trainingMode&&(!this.activeBoss||!this.activeBoss.active)){
+      this.time.delayedCall(250,()=>{if(this.scene&&this.scene.isActive('GameScene')&&this._mpIsHost&&(!this.activeBoss||!this.activeBoss.active))this._spawnBoss(this._trainingBossKey);});
     }
   }
 
@@ -1116,7 +1145,12 @@ class GameScene extends Phaser.Scene{
   }
 
   _mpCollectWorldState(){
-    const world={mode:{training:!!this._trainingMode,bossKey:this._trainingBossKey||'',hard:!!this._hardMode},enemies:[],bosses:[]};
+    const world={
+      mode:{training:!!this._trainingMode,bossKey:this._trainingBossKey||'',hard:!!this._hardMode},
+      progress:{level:Math.round(S.level||1),xp:Math.round(S.xp||0),xpNext:Math.max(2,Math.round(S.xpNext||2))},
+      enemies:[],
+      bosses:[]
+    };
     this.enemies.getChildren().forEach(e=>{
       if(!e||!e.active)return;
       if(!e._mpRid)e._mpRid=this._mpAllocRid(e._isBoss?'bo':'en');
@@ -1138,6 +1172,7 @@ class GameScene extends Phaser.Scene{
     if(!world||typeof world!=='object')return;
     this._mpRemoteWorldAt=this.time.now;
     const mode=world.mode&&typeof world.mode==='object'?world.mode:null;
+    this._mpApplySharedProgress(world.progress||null);
     if(mode&&this._mpModeLabel){
       const parts=[];
       if(mode.training)parts.push('TRAINING');
@@ -1182,6 +1217,31 @@ class GameScene extends Phaser.Scene{
     this._mpRemoteBosses.forEach((obj,id)=>{if(seenB.has(id))return;obj.body.destroy();obj.txt.destroy();this._mpRemoteBosses.delete(id);});
   }
 
+  _mpApplySharedProgress(progress){
+    if(!progress||typeof progress!=='object')return;
+    const lvl=Math.max(1,Math.min(9999,Math.floor(Number(progress.level)||1)));
+    const xp=Math.max(0,Math.min(999999,Math.floor(Number(progress.xp)||0)));
+    const xpNext=Math.max(2,Math.min(999999,Math.floor(Number(progress.xpNext)||2)));
+    if(lvl>S.level){
+      this._mpPendingLevelUps+=(lvl-S.level);
+      S.level=lvl;
+    }else if(lvl<S.level){
+      S.level=lvl;
+      this._mpPendingLevelUps=0;
+    }
+    S.xp=xp;
+    S.xpNext=xpNext;
+    this._mpTryConsumePendingLevelUp();
+    this._updateHUD();
+  }
+
+  _mpTryConsumePendingLevelUp(){
+    if(!this._mpPendingLevelUps||this._mpPendingLevelUps<=0)return;
+    if(this.gamePaused)return;
+    this._mpPendingLevelUps--;
+    this._showLevelUp();
+  }
+
   _mpTick(time,px,py){
     const ws=this._mpSocket;
     if(!ws||ws.readyState!==1)return;
@@ -1222,6 +1282,7 @@ class GameScene extends Phaser.Scene{
     }
     if(this._mpLabel){this._mpLabel.destroy();this._mpLabel=null;}
     if(this._mpModeLabel){this._mpModeLabel.destroy();this._mpModeLabel=null;}
+    this._mpPendingLevelUps=0;
   }
 
   _applyCharacter(){
@@ -2525,6 +2586,7 @@ class GameScene extends Phaser.Scene{
     this._syncWeapons();
     this._allTimers().forEach(t=>{if(t)t.paused=false;});
     this.physics.resume();this.gamePaused=false;this._updateHUD();
+    this._mpTryConsumePendingLevelUp();
   }
 
   _gameOver(){
@@ -2620,6 +2682,7 @@ class GameScene extends Phaser.Scene{
 
   update(time,delta){
     if(this.gamePaused)return;
+    const mpClientMode=!!(this._mpEnabled&&!this._mpIsHost);
     const bossActive=!!(this.activeBoss&&this.activeBoss.active);
     if(time>(this._rpcNextAt||0)){
       this._rpcNextAt=time+2200;
@@ -2633,8 +2696,10 @@ class GameScene extends Phaser.Scene{
     }
     this._setBackgroundMusic(!bossActive,bossActive);
     this._setBossMusic(bossActive,bossActive?(this.activeBoss&&this.activeBoss._bossType&&this.activeBoss._bossType.key)||null:null);
-    this._bossSpecialAttacks(time);
-    this._tickBossLasers(time);
+    if(!mpClientMode){
+      this._bossSpecialAttacks(time);
+      this._tickBossLasers(time);
+    }
     if(Phaser.Input.Keyboard.JustDown(this.escKey)||Phaser.Input.Keyboard.JustDown(this.pKey))this._togglePause();
     const dt=delta/1000;
     this.bg.tilePositionX=this.cameras.main.scrollX;this.bg.tilePositionY=this.cameras.main.scrollY;
@@ -2648,56 +2713,56 @@ class GameScene extends Phaser.Scene{
     this.player.setVelocity(vx,vy);
     const px=this.player.x,py=this.player.y;
     if(this._mpEnabled)this._mpTick(time,px,py);
-    const baseSpd=62+S.level*3.5;
-    this.enemies.getChildren().forEach(e=>{
-      if(!e.active)return;
-      if(e.burnUntil&&time<e.burnUntil&&time>(e.burnTick||0)){e.burnTick=time+320;e.hp-=Math.max(1,e.burnDmg||1);this._dmgPop(e.x,e.y-10,e.burnDmg||1,'#ff7744');if(e._isBoss)this._updateBossBar();if(e.hp<=0){this._killEnemy(e);return;}}
-      if(e.slowUntil&&time>e.slowUntil){e.slowUntil=0;e.slowMult=1;}
-      const dx=px-e.x,dy=py-e.y,dist=Math.hypot(dx,dy)||1;
-      let spd=baseSpd*((e.etype&&e.etype.spdMult)||1)*(this._hardMode?HARD_MODE_TUNING.enemySpd:1);
-      if(e._isBoss&&e._phase2)spd*=1.45;
-      if(S.chillAura&&dist<180)spd*=.7;
-      if(e.slowUntil&&e.slowUntil>time)spd*=(e.slowMult||1);
-      const sp=e.etype&&e.etype.special;
-      if(e.charmedUntil&&e.charmedUntil>time){
-        e.body.setVelocity((-dx/dist)*spd,(-dy/dist)*spd);
-        e.setTint(0xff66cc);
-      } else if(sp==='specter'||sp==='specter_boss'){
-        const mag=sp==='specter_boss'?120:85;
-        const wob=Math.sin(time*.003+e._phase)*mag;
-        const ppx=-(dy/dist),ppy=(dx/dist);
-        e.body.setVelocity((dx/dist)*spd+ppx*wob,(dy/dist)*spd+ppy*wob);
-        e.setAlpha(.5+Math.sin(time*.004+e._phase)*.38);
-      } else if(sp==='sentinel'&&!e._isBoss){
-        if(dist<270){e.body.setVelocity(0,0);if(time-e.lastShot>2600){e.lastShot=time;this._sentinelShockwave(e);}}
-        else e.body.setVelocity((dx/dist)*spd,(dy/dist)*spd);
-      } else {
-        e.body.setVelocity((dx/dist)*spd,(dy/dist)*spd);
-      }
-      const hitR=(e.etype&&e.etype.w/2||11)+14;
-      if(dist<hitR&&!this.iframes&&!(e.charmedUntil&&e.charmedUntil>time)){
-        if(sp==='vampire')e.hp=Math.min(e.maxHp,e.hp+8);
-        this._playerTakeDamage((e.etype&&e.etype.dmg)||10);
-      }
-      if(!(e.charmedUntil&&e.charmedUntil>time))e.clearTint();
-    });
-    // Gems
-    const vr=S.vacRad,vr2=vr*vr;const toCollect=[];
-    this.gems.getChildren().forEach(gem=>{
-      if(!gem.active)return;
-      const dx=px-gem.x,dy=py-gem.y,d2=dx*dx+dy*dy;
-      if(d2<256)toCollect.push(gem);
-      else if(d2<vr2){const d=Math.sqrt(d2)||1;const sp=150+(1-d/vr)*420;gem.body.setVelocity((dx/d)*sp,(dy/d)*sp);}
-      else gem.body.setVelocity(0,0);
-    });
-    toCollect.forEach(g=>this._collectGem(g));
-    // Drops
-    this.drops.getChildren().forEach(it=>{
-      if(!it.active)return;
-      const dx=px-it.x,dy=py-it.y,d=Math.hypot(dx,dy)||1;
-      if(d<22){this._collectDrop(it);return;}
-      if(d<160)it.body.setVelocity((dx/d)*85,(dy/d)*85);else it.body.setVelocity(0,0);
-    });
+    if(!mpClientMode){
+      const baseSpd=62+S.level*3.5;
+      this.enemies.getChildren().forEach(e=>{
+        if(!e.active)return;
+        if(e.burnUntil&&time<e.burnUntil&&time>(e.burnTick||0)){e.burnTick=time+320;e.hp-=Math.max(1,e.burnDmg||1);this._dmgPop(e.x,e.y-10,e.burnDmg||1,'#ff7744');if(e._isBoss)this._updateBossBar();if(e.hp<=0){this._killEnemy(e);return;}}
+        if(e.slowUntil&&time>e.slowUntil){e.slowUntil=0;e.slowMult=1;}
+        const dx=px-e.x,dy=py-e.y,dist=Math.hypot(dx,dy)||1;
+        let spd=baseSpd*((e.etype&&e.etype.spdMult)||1)*(this._hardMode?HARD_MODE_TUNING.enemySpd:1);
+        if(e._isBoss&&e._phase2)spd*=1.45;
+        if(S.chillAura&&dist<180)spd*=.7;
+        if(e.slowUntil&&e.slowUntil>time)spd*=(e.slowMult||1);
+        const sp=e.etype&&e.etype.special;
+        if(e.charmedUntil&&e.charmedUntil>time){
+          e.body.setVelocity((-dx/dist)*spd,(-dy/dist)*spd);
+          e.setTint(0xff66cc);
+        } else if(sp==='specter'||sp==='specter_boss'){
+          const mag=sp==='specter_boss'?120:85;
+          const wob=Math.sin(time*.003+e._phase)*mag;
+          const ppx=-(dy/dist),ppy=(dx/dist);
+          e.body.setVelocity((dx/dist)*spd+ppx*wob,(dy/dist)*spd+ppy*wob);
+          e.setAlpha(.5+Math.sin(time*.004+e._phase)*.38);
+        } else if(sp==='sentinel'&&!e._isBoss){
+          if(dist<270){e.body.setVelocity(0,0);if(time-e.lastShot>2600){e.lastShot=time;this._sentinelShockwave(e);}}
+          else e.body.setVelocity((dx/dist)*spd,(dy/dist)*spd);
+        } else {
+          e.body.setVelocity((dx/dist)*spd,(dy/dist)*spd);
+        }
+        const hitR=(e.etype&&e.etype.w/2||11)+14;
+        if(dist<hitR&&!this.iframes&&!(e.charmedUntil&&e.charmedUntil>time)){
+          if(sp==='vampire')e.hp=Math.min(e.maxHp,e.hp+8);
+          this._playerTakeDamage((e.etype&&e.etype.dmg)||10);
+        }
+        if(!(e.charmedUntil&&e.charmedUntil>time))e.clearTint();
+      });
+      const vr=S.vacRad,vr2=vr*vr;const toCollect=[];
+      this.gems.getChildren().forEach(gem=>{
+        if(!gem.active)return;
+        const dx=px-gem.x,dy=py-gem.y,d2=dx*dx+dy*dy;
+        if(d2<256)toCollect.push(gem);
+        else if(d2<vr2){const d=Math.sqrt(d2)||1;const sp=150+(1-d/vr)*420;gem.body.setVelocity((dx/d)*sp,(dy/d)*sp);}
+        else gem.body.setVelocity(0,0);
+      });
+      toCollect.forEach(g=>this._collectGem(g));
+      this.drops.getChildren().forEach(it=>{
+        if(!it.active)return;
+        const dx=px-it.x,dy=py-it.y,d=Math.hypot(dx,dy)||1;
+        if(d<22){this._collectDrop(it);return;}
+        if(d<160)it.body.setVelocity((dx/d)*85,(dy/d)*85);else it.body.setVelocity(0,0);
+      });
+    }
     // Curved bullets
     if(S.curvedBullets){
       const live=this.enemies.getChildren().filter(e=>e.active);
@@ -2731,7 +2796,7 @@ class GameScene extends Phaser.Scene{
       });
     }
     // Orbital orbs
-    if(this.orbVisuals.length>0){
+    if(!mpClientMode&&this.orbVisuals.length>0){
       this.orbitAngle+=dt*(1.2+S.orbLevel*.3);
       const now=this.time.now,cnt=this.orbVisuals.length;
       this.orbVisuals.forEach((orb,i)=>{
@@ -2769,6 +2834,7 @@ class GameScene extends Phaser.Scene{
     const secs=Math.floor((time-this.startTime)/1000);
     if(S.hpRegen>0){const dt=Math.max(0,(time-(this._regenTick||time))/1000);this._regenTick=time;const rps=0.2+Math.max(0,S.hpRegen-1)*0.089;this._regenAcc=(this._regenAcc||0)+rps*dt;if(this._regenAcc>=1){const heal=Math.floor(this._regenAcc);S.hp=Math.min(S.maxHp,S.hp+heal);this._regenAcc-=heal;}}else this._regenTick=time;
     document.getElementById('h-time').textContent='\u23F1 '+Math.floor(secs/60)+':'+(secs%60).toString().padStart(2,'0');
+    this._mpTryConsumePendingLevelUp();
     if(S.kills!==this._prevKills){this._prevKills=S.kills;document.getElementById('h-kills').textContent='\u2620 '+S.kills+' kills';}
   }
 

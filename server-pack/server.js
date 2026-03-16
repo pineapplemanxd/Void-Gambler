@@ -79,6 +79,12 @@ function sanitizeWorldPayload(w) {
     bossKey: String(modeRaw.bossKey || '').replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, 32),
     hard: !!modeRaw.hard,
   };
+  const progRaw = w.progress && typeof w.progress === 'object' ? w.progress : {};
+  const progress = {
+    level: safeNum(progRaw.level, 1, 9999, 1),
+    xp: safeNum(progRaw.xp, 0, 999999, 0),
+    xpNext: safeNum(progRaw.xpNext, 2, 999999, 2),
+  };
   const enemiesIn = Array.isArray(w.enemies) ? w.enemies : [];
   const bossesIn = Array.isArray(w.bosses) ? w.bosses : [];
   const enemies = [];
@@ -91,7 +97,7 @@ function sanitizeWorldPayload(w) {
     const item = sanitizeWorldEntity(bossesIn[i], true);
     if (item) bosses.push(item);
   }
-  return { mode, enemies, bosses };
+  return { mode, progress, enemies, bosses };
 }
 
 function pickHostIfNeeded() {
