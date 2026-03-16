@@ -1081,8 +1081,13 @@ class GameScene extends Phaser.Scene{
   }
 
   _mpRenderRemotePlayerBullets(playerId,list){
+    if(this._mpIsHost){
+      this._mpApplyRemoteBulletHits(playerId,list);
+      this._mpClearRemoteBulletsFor(playerId);
+      return;
+    }
     const seen=new Set();
-    for(let i=0;i<list.length&&i<90;i++){
+    for(let i=0;i<list.length&&i<28;i++){
       const b=list[i]||{};
       const rid=String(b.rid||('idx'+i));
       const key=playerId+':'+rid;
@@ -1103,7 +1108,6 @@ class GameScene extends Phaser.Scene{
       else obj.shape.setTint(tint);
       if(obj.shape.setRotation)obj.shape.setRotation(Math.atan2(vy,vx));
     }
-    if(this._mpIsHost)this._mpApplyRemoteBulletHits(playerId,list);
     this._mpRemoteBullets.forEach((obj,key)=>{
       if(!key.startsWith(playerId+':'))return;
       if(seen.has(key))return;
@@ -1185,7 +1189,7 @@ class GameScene extends Phaser.Scene{
     this.enemies.getChildren().forEach(e=>{
       if(!e||!e.active)return;
       if(!e._mpRid)e._mpRid=this._mpAllocRid(e._isBoss?'bo':'en');
-      const row={rid:e._mpRid,key:String((e.etype&&e.etype.key)||'enemy'),x:Math.round(e.x),y:Math.round(e.y),hp:Math.max(0,Math.round(e.hp||0)),maxHp:Math.max(1,Math.round(e.maxHp||1)),dmg:Math.max(1,Math.round((e.etype&&e.etype.dmg)||10))};
+      const row={rid:e._mpRid,key:String((e.etype&&e.etype.key)||'enemy'),x:Math.round(e.x),y:Math.round(e.y),vx:Math.round((e.body&&e.body.velocity&&e.body.velocity.x)||0),vy:Math.round((e.body&&e.body.velocity&&e.body.velocity.y)||0),hp:Math.max(0,Math.round(e.hp||0)),maxHp:Math.max(1,Math.round(e.maxHp||1)),dmg:Math.max(1,Math.round((e.etype&&e.etype.dmg)||10))};
       if(e._isBoss){
         if(world.bosses.length<10){
           row.phase2=!!e._phase2;
@@ -1232,7 +1236,7 @@ class GameScene extends Phaser.Scene{
       if(sp.body){
         sp.body.enable=true;
         sp.body.reset(x,y);
-        sp.body.setVelocity(0,0);
+        sp.body.setVelocity(Number(e.vx)||0,Number(e.vy)||0);
         if(et.w&&et.h)sp.body.setSize(et.w,et.h,true);
       }
       sp._isBoss=false;
@@ -1259,7 +1263,7 @@ class GameScene extends Phaser.Scene{
       if(sp.body){
         sp.body.enable=true;
         sp.body.reset(x,y);
-        sp.body.setVelocity(0,0);
+        sp.body.setVelocity(Number(b.vx)||0,Number(b.vy)||0);
         if(bt.w&&bt.h)sp.body.setSize(bt.w,bt.h,true);
       }
       sp._isBoss=true;
@@ -1312,6 +1316,14 @@ class GameScene extends Phaser.Scene{
     this._showLevelUp();
   }
 
+  _mpCollectorPoints(){
+    const pts=[{x:this.player.x,y:this.player.y}];
+    if(this._mpEnabled&&this._mpIsHost&&this._mpRemotePlayers){
+      this._mpRemotePlayers.forEach(rp=>{if(rp&&rp.body&&Number.isFinite(rp.body.x)&&Number.isFinite(rp.body.y))pts.push({x:rp.body.x,y:rp.body.y});});
+    }
+    return pts;
+  }
+
   _mpTick(time,px,py){
     const ws=this._mpSocket;
     if(!ws||ws.readyState!==1)return;
@@ -1319,7 +1331,7 @@ class GameScene extends Phaser.Scene{
     this._mpSendAt=time+80;
     try{ws.send(JSON.stringify({type:'state',x:Math.round(px),y:Math.round(py),hp:Math.round(S.hp),level:Math.round(S.level),nick:this._mpNick,bullets:this._mpCollectLocalBullets()}));}catch(e){}
     if(this._mpIsHost&&time>(this._mpWorldSendAt||0)){
-      this._mpWorldSendAt=time+220;
+      this._mpWorldSendAt=time+100;
       try{ws.send(JSON.stringify({type:'world',world:this._mpCollectWorldState()}));}catch(e){}
     }
     if(!this._mpIsHost&&this._mpRemoteWorldAt&&time-this._mpRemoteWorldAt>4500){
@@ -2821,11 +2833,16 @@ class GameScene extends Phaser.Scene{
         if(!(e.charmedUntil&&e.charmedUntil>time))e.clearTint();
       });
       const vr=S.vacRad,vr2=vr*vr;const toCollect=[];
+      const collectors=this._mpCollectorPoints();
       this.gems.getChildren().forEach(gem=>{
         if(!gem.active)return;
-        const dx=px-gem.x,dy=py-gem.y,d2=dx*dx+dy*dy;
-        if(d2<256)toCollect.push(gem);
-        else if(d2<vr2){const d=Math.sqrt(d2)||1;const sp=150+(1-d/vr)*420;gem.body.setVelocity((dx/d)*sp,(dy/d)*sp);}
+        let bestDx=0,bestDy=0,bestD2=Infinity;
+        for(let i=0;i<collectors.length;i++){
+          const c=collectors[i],dx=c.x-gem.x,dy=c.y-gem.y,d2=dx*dx+dy*dy;
+          if(d2<bestD2){bestD2=d2;bestDx=dx;bestDy=dy;}
+        }
+        if(bestD2<256)toCollect.push(gem);
+        else if(bestD2<vr2){const d=Math.sqrt(bestD2)||1;const sp=150+(1-d/vr)*420;gem.body.setVelocity((bestDx/d)*sp,(bestDy/d)*sp);}
         else gem.body.setVelocity(0,0);
       });
       toCollect.forEach(g=>this._collectGem(g));
@@ -2844,7 +2861,7 @@ class GameScene extends Phaser.Scene{
       });
     }
     // Curved bullets
-    if(S.curvedBullets){
+    if(!mpClientMode&&S.curvedBullets){
       const live=this.enemies.getChildren().filter(e=>e.active);
       if(live.length)this.bullets.getChildren().forEach(b=>{
         if(!b.active||!b.curved)return;
@@ -2860,7 +2877,7 @@ class GameScene extends Phaser.Scene{
       });
     }
     // Missile homing
-    if(S.missileLevel>0){
+    if(!mpClientMode&&S.missileLevel>0){
       const live=this.enemies.getChildren().filter(e=>e.active);
       this.missiles.getChildren().forEach(m=>{
         if(!m.active||!live.length)return;

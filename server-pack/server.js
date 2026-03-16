@@ -62,6 +62,8 @@ function sanitizeWorldEntity(e, isBoss) {
     key,
     x: safeNum(e.x, 0, 4000, 0),
     y: safeNum(e.y, 0, 4000, 0),
+    vx: safeNum(e.vx, -3000, 3000, 0),
+    vy: safeNum(e.vy, -3000, 3000, 0),
     hp: safeNum(e.hp, 0, 999999, 1),
     maxHp: safeNum(e.maxHp, 1, 999999, 1),
     dmg: safeNum(e.dmg, 1, 99999, isBoss ? 26 : 10),
