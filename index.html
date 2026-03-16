@@ -56,6 +56,8 @@ body{background:var(--bg);display:flex;justify-content:center;align-items:center
 .screen-ov.visible{opacity:1;pointer-events:all}
 .screen-ov::before{content:'';position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,.013) 2px,rgba(255,255,255,.013) 4px);z-index:0}
 .ov-inner{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:10px}
+#menu-ov{justify-content:flex-start;overflow-y:auto;overflow-x:hidden;padding:18px 0;touch-action:pan-y}
+#menu-ov .ov-inner{margin:0 auto;min-height:max-content;padding-bottom:20px}
 .menu-eyebrow{font-size:10px;color:#44226a;letter-spacing:.42em;text-transform:uppercase;font-family:'Orbitron',monospace}
 .menu-title{font-family:'Orbitron',monospace;font-size:52px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);line-height:1.05;text-align:center;text-shadow:0 0 12px var(--gold),0 0 38px rgba(255,140,0,.7),0 0 80px rgba(255,60,0,.35);animation:flicker 3.5s ease-in-out infinite}
 @keyframes flicker{0%,100%{opacity:1;text-shadow:0 0 12px var(--gold),0 0 38px rgba(255,140,0,.7),0 0 80px rgba(255,60,0,.35)}49%{opacity:1}50%{opacity:.88;text-shadow:0 0 5px var(--gold)}52%{opacity:1}78%{text-shadow:0 0 18px var(--gold),0 0 52px rgba(255,180,0,.9),0 0 100px rgba(255,60,0,.5)}}
@@ -214,6 +216,17 @@ body{background:var(--bg);display:flex;justify-content:center;align-items:center
             <input id="hard-mode-toggle" type="checkbox" style="transform:scale(1.15)" />
           </label>
           <div style="font-size:9px;color:#c07a7a">Huge difficulty increase: tougher enemies, faster waves, lower XP gain.</div>
+          <label style="font-size:9px;color:#8f73be;display:flex;justify-content:space-between;gap:8px;border-top:1px solid #261441;padding-top:6px;margin-top:2px">Nickname
+            <input id="mp-nick" type="text" maxlength="16" value="Player" style="width:140px;background:#17072a;border:1px solid #382056;color:#d7c7ff;border-radius:4px;padding:2px 4px;font-size:9px" />
+          </label>
+          <label style="font-size:9px;color:#8f73be;display:flex;justify-content:space-between;gap:8px">Server
+            <input id="mp-server" type="text" value="ws://89.168.107.87:8080" style="width:200px;background:#17072a;border:1px solid #382056;color:#d7c7ff;border-radius:4px;padding:2px 4px;font-size:9px" />
+          </label>
+          <label style="font-size:10px;color:#8ec8ff;display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <span>Enable Multiplayer</span>
+            <input id="mp-enable" type="checkbox" style="transform:scale(1.15)" />
+          </label>
+          <div style="font-size:9px;color:#6ea5d8">Desktop client connects directly to your websocket server.</div>
         </div>
         <div style="width:100%;height:1px;background:rgba(255,255,255,.05);margin:6px 0 2px"></div>
         <div style="font-size:9px;color:#5a3a85;letter-spacing:.14em;text-transform:uppercase;align-self:center">Boss Training</div>
@@ -408,19 +421,23 @@ const GUNS=[
 ];
 
 const SAVE_KEY='voidGamblerSaveV2';
-const META_DEFAULT={totalKills:0,totalMaterials:0,totalDeaths:0,bestLevel:1,bestUniqueWeapons:1,selectedCharacter:'well_rounded',unlockedChars:{},audio:{music:0.55,sfx:0.8},settings:{hardMode:false,trainingHardMode:false,graphicsQuality:'high',performanceMode:false}};
+const META_DEFAULT={totalKills:0,totalMaterials:0,totalDeaths:0,bestLevel:1,bestUniqueWeapons:1,selectedCharacter:'well_rounded',unlockedChars:{},audio:{music:0.55,sfx:0.8},settings:{hardMode:false,trainingHardMode:false,graphicsQuality:'high',performanceMode:false,mpEnabled:false,mpNick:'Player',mpServer:'ws://89.168.107.87:8080'}};
 let META=loadMeta();
 let SELECTED_CHARACTER=META.selectedCharacter||'well_rounded';
 let TRAINING_CFG={enabled:false,bossKey:null,weapons:[],hardMode:false};
 if(!META.audio)META.audio={music:0.55,sfx:0.8};
-if(!META.settings)META.settings={hardMode:false,trainingHardMode:false,graphicsQuality:'high',performanceMode:false};
+if(!META.settings)META.settings={hardMode:false,trainingHardMode:false,graphicsQuality:'high',performanceMode:false,mpEnabled:false,mpNick:'Player',mpServer:'ws://89.168.107.87:8080'};
 META.settings.graphicsQuality=normalizeGraphicsQuality(META.settings.graphicsQuality);
 META.settings.performanceMode=!!META.settings.performanceMode;
+META.settings.mpEnabled=!!META.settings.mpEnabled;
+META.settings.mpNick=String(META.settings.mpNick||'Player').trim().slice(0,16)||'Player';
+META.settings.mpServer=String(META.settings.mpServer||'ws://89.168.107.87:8080').trim()||'ws://89.168.107.87:8080';
 AUDIO_SETTINGS.music=Math.min(1,Math.max(0,Number(META.audio.music)||0.55));
 AUDIO_SETTINGS.sfx=Math.min(1,Math.max(0,Number(META.audio.sfx)||0.8));
 let HARD_MODE=!!META.settings.hardMode;
 let GRAPHICS_QUALITY=normalizeGraphicsQuality(META.settings.graphicsQuality);
 let PERFORMANCE_MODE=!!META.settings.performanceMode;
+let MULTI_CFG={enabled:!!META.settings.mpEnabled,nick:META.settings.mpNick,server:META.settings.mpServer};
 
 function loadMeta(){
   try{
@@ -843,6 +860,9 @@ class MenuScene extends Phaser.Scene{
     const sfxVol=document.getElementById('sfx-vol');
     const graphicsQualitySel=document.getElementById('graphics-quality');
     const performanceModeToggle=document.getElementById('performance-mode-toggle');
+    const mpNick=document.getElementById('mp-nick');
+    const mpServer=document.getElementById('mp-server');
+    const mpEnable=document.getElementById('mp-enable');
     const hardModeToggle=document.getElementById('hard-mode-toggle');
     const trainHardToggle=document.getElementById('train-hard-toggle');
     const musicVolVal=document.getElementById('music-vol-val');
@@ -876,6 +896,9 @@ class MenuScene extends Phaser.Scene{
     sfxVol.value=String(Math.round((AUDIO_SETTINGS.sfx||0.8)*100));
     graphicsQualitySel.value=normalizeGraphicsQuality((META.settings&&META.settings.graphicsQuality)||GRAPHICS_QUALITY);
     performanceModeToggle.checked=!!(META.settings&&META.settings.performanceMode);
+    mpNick.value=String((META.settings&&META.settings.mpNick)||MULTI_CFG.nick||'Player').slice(0,16);
+    mpServer.value=String((META.settings&&META.settings.mpServer)||MULTI_CFG.server||'ws://89.168.107.87:8080');
+    mpEnable.checked=!!(META.settings&&META.settings.mpEnabled);
     hardModeToggle.checked=!!HARD_MODE;
     trainHardToggle.checked=!!(META.settings&&META.settings.trainingHardMode);
     musicVolVal.textContent=musicVol.value+'%';
@@ -884,6 +907,19 @@ class MenuScene extends Phaser.Scene{
     sfxVol.oninput=()=>{AUDIO_SETTINGS.sfx=Math.min(1,Math.max(0,Number(sfxVol.value)/100));sfxVolVal.textContent=sfxVol.value+'%';META.audio={music:AUDIO_SETTINGS.music,sfx:AUDIO_SETTINGS.sfx};saveMeta();};
     graphicsQualitySel.onchange=()=>{GRAPHICS_QUALITY=normalizeGraphicsQuality(graphicsQualitySel.value);META.settings={...(META.settings||{}),graphicsQuality:GRAPHICS_QUALITY};saveMeta();};
     performanceModeToggle.onchange=()=>{PERFORMANCE_MODE=!!performanceModeToggle.checked;META.settings={...(META.settings||{}),performanceMode:PERFORMANCE_MODE};saveMeta();};
+    const syncMpSettings=()=>{
+      const nick=String(mpNick.value||'Player').trim().slice(0,16)||'Player';
+      const server=String(mpServer.value||'ws://89.168.107.87:8080').trim()||'ws://89.168.107.87:8080';
+      const enabled=!!mpEnable.checked;
+      mpNick.value=nick;
+      mpServer.value=server;
+      MULTI_CFG={enabled,nick,server};
+      META.settings={...(META.settings||{}),mpEnabled:enabled,mpNick:nick,mpServer:server};
+      saveMeta();
+    };
+    mpNick.oninput=syncMpSettings;
+    mpServer.onchange=syncMpSettings;
+    mpEnable.onchange=syncMpSettings;
     hardModeToggle.onchange=()=>{HARD_MODE=!!hardModeToggle.checked;META.settings={...(META.settings||{}),hardMode:HARD_MODE};saveMeta();};
     trainHardToggle.onchange=()=>{META.settings={...(META.settings||{}),trainingHardMode:!!trainHardToggle.checked};saveMeta();};
     saveMeta();
@@ -896,8 +932,9 @@ class MenuScene extends Phaser.Scene{
       window.removeEventListener('keydown',this._menuKeyStart);
       this._setMenuMusic(false);
     });
-    document.getElementById('start-btn').onclick=()=>{TRAINING_CFG={enabled:false,bossKey:null,weapons:[],hardMode:false};this._setMenuMusic(false);document.getElementById('menu-ov').classList.remove('visible');this.scene.start('GameScene');};
+    document.getElementById('start-btn').onclick=()=>{syncMpSettings();TRAINING_CFG={enabled:false,bossKey:null,weapons:[],hardMode:false};this._setMenuMusic(false);document.getElementById('menu-ov').classList.remove('visible');this.scene.start('GameScene');};
     document.getElementById('start-training').onclick=()=>{
+      syncMpSettings();
       const picked=Array.from(trainWeapons.selectedOptions||[]).map(o=>o.value).filter(Boolean);
       TRAINING_CFG={enabled:true,bossKey:trainBoss.value||BOSS_TYPES[0].key,weapons:picked.length?picked:['pistol'],hardMode:!!trainHardToggle.checked};
       this._setMenuMusic(false);
@@ -914,6 +951,89 @@ class MenuScene extends Phaser.Scene{
 
 class GameScene extends Phaser.Scene{
   constructor(){super({key:'GameScene'});}
+
+  _sanitizeNick(v){return String(v||'Player').trim().replace(/[^a-zA-Z0-9_\- ]/g,'').slice(0,16)||'Player';}
+
+  _sanitizeServer(v){
+    const raw=String(v||'').trim();
+    if(!raw)return 'ws://89.168.107.87:8080';
+    if(/^wss?:\/\//i.test(raw))return raw;
+    return 'ws://'+raw;
+  }
+
+  _initMultiplayer(){
+    this._mpLocalId='';
+    this._mpSocket=null;
+    this._mpSendAt=0;
+    this._mpRemotePlayers=new Map();
+    this._mpServer=this._sanitizeServer(MULTI_CFG.server);
+    this._mpNick=this._sanitizeNick(MULTI_CFG.nick);
+    this._mpLabel=this.add.text(12,GH-12,'MP: connecting...',{fontSize:'12px',fontFamily:'"Share Tech Mono","Courier New",monospace',color:'#8ec8ff',stroke:'#000',strokeThickness:3}).setScrollFactor(0).setDepth(60).setOrigin(0,1);
+    let ws;
+    try{ws=new WebSocket(this._mpServer);}catch(e){this._notify('MULTIPLAYER ERROR: BAD SERVER ADDRESS','#ff7777');this._mpLabel.setText('MP: offline');return;}
+    this._mpSocket=ws;
+    ws.onopen=()=>{
+      try{ws.send(JSON.stringify({type:'hello',nick:this._mpNick}));}catch(e){}
+      this._mpLabel.setText('MP: connected as '+this._mpNick);
+      this._notify('MULTIPLAYER CONNECTED','#66ccff');
+    };
+    ws.onerror=()=>{if(this._mpLabel)this._mpLabel.setText('MP: connection error');};
+    ws.onclose=()=>{if(this._mpLabel)this._mpLabel.setText('MP: disconnected');};
+    ws.onmessage=(evt)=>{
+      let msg;
+      try{msg=JSON.parse(String(evt.data||''));}catch(e){return;}
+      if(!msg||typeof msg!=='object')return;
+      if(msg.type==='welcome'){
+        this._mpLocalId=String(msg.id||'');
+        return;
+      }
+      if(msg.type==='snapshot'&&Array.isArray(msg.players)){
+        const seen=new Set();
+        msg.players.forEach(p=>{
+          if(!p||typeof p!=='object')return;
+          const id=String(p.id||'');
+          if(!id||id===this._mpLocalId)return;
+          seen.add(id);
+          let rp=this._mpRemotePlayers.get(id);
+          if(!rp){
+            const body=this.add.circle(Number(p.x)||0,Number(p.y)||0,11,0x34a6ff,.55).setDepth(10);
+            const txt=this.add.text(Number(p.x)||0,(Number(p.y)||0)-18,this._sanitizeNick(p.nick||'Player'),{fontSize:'11px',fontFamily:'"Share Tech Mono","Courier New",monospace',color:'#cfe8ff',stroke:'#000',strokeThickness:3}).setDepth(11).setOrigin(.5,1);
+            rp={body,txt};
+            this._mpRemotePlayers.set(id,rp);
+          }
+          const nx=Number(p.x)||0,ny=Number(p.y)||0;
+          rp.body.setPosition(nx,ny);
+          rp.txt.setPosition(nx,ny-18).setText(this._sanitizeNick(p.nick||'Player'));
+        });
+        this._mpRemotePlayers.forEach((rp,id)=>{
+          if(seen.has(id))return;
+          rp.body.destroy();
+          rp.txt.destroy();
+          this._mpRemotePlayers.delete(id);
+        });
+      }
+    };
+  }
+
+  _mpTick(time,px,py){
+    const ws=this._mpSocket;
+    if(!ws||ws.readyState!==1)return;
+    if(time<(this._mpSendAt||0))return;
+    this._mpSendAt=time+80;
+    try{ws.send(JSON.stringify({type:'state',x:Math.round(px),y:Math.round(py),hp:Math.round(S.hp),level:Math.round(S.level),nick:this._mpNick}));}catch(e){}
+  }
+
+  _teardownMultiplayer(){
+    if(this._mpSocket){
+      try{this._mpSocket.close();}catch(e){}
+      this._mpSocket=null;
+    }
+    if(this._mpRemotePlayers){
+      this._mpRemotePlayers.forEach(rp=>{try{rp.body.destroy();rp.txt.destroy();}catch(e){}});
+      this._mpRemotePlayers.clear();
+    }
+    if(this._mpLabel){this._mpLabel.destroy();this._mpLabel=null;}
+  }
 
   _applyCharacter(){
     const c=getCharacterById(SELECTED_CHARACTER);
@@ -1008,6 +1128,7 @@ class GameScene extends Phaser.Scene{
     this._rpcNextAt=0;
     this._rpcLastLevel=-1;
     this._rpcLastBoss='';
+    this._mpEnabled=!!(MULTI_CFG.enabled&&!this._trainingMode);
     this.gunMap=Object.fromEntries(GUNS.map(g=>[g.id,g]));
     this._applyCharacter();
     if(this._trainingMode){
@@ -1065,6 +1186,7 @@ class GameScene extends Phaser.Scene{
       RPC.set('Boss Training',((bt&&bt.name)||'Boss')+(this._hardMode?' · Hard':''),true);
     }
     if(this._hardMode)this._notify('HARD MODE ACTIVE','#ff6666');
+    if(this._mpEnabled)this._initMultiplayer();
     if(!this._trainingMode)RPC.set('In Run','Level '+S.level+(this._hardMode?' · Hard':''),true);
 
     const pb=document.getElementById('pause-btn');
@@ -1076,7 +1198,7 @@ class GameScene extends Phaser.Scene{
     document.getElementById('boss-bar-wrap').style.display='none';
     this._updateHUD();
     this._setBackgroundMusic(true);
-    this.events.once('shutdown',()=>{this._setBossMusic(false);this._setBackgroundMusic(false);});
+    this.events.once('shutdown',()=>{this._setBossMusic(false);this._setBackgroundMusic(false);this._teardownMultiplayer();});
   }
 
   _mkTimer(ms,cb){return this.time.addEvent({delay:ms,callback:cb,callbackScope:this,loop:true});}
@@ -2336,6 +2458,7 @@ class GameScene extends Phaser.Scene{
     if(vx&&vy){vx*=.7071;vy*=.7071;}
     this.player.setVelocity(vx,vy);
     const px=this.player.x,py=this.player.y;
+    if(this._mpEnabled)this._mpTick(time,px,py);
     const baseSpd=62+S.level*3.5;
     this.enemies.getChildren().forEach(e=>{
       if(!e.active)return;
