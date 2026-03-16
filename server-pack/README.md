@@ -29,6 +29,15 @@ You can customize:
 PORT=8080 HOST=0.0.0.0 TICK_MS=100 npm start
 ```
 
+Logging options:
+
+```bash
+LOG_WORLD=1 npm start
+```
+
+- `LOG_WORLD=1` logs host world snapshots (enemy/boss counts + training flag).
+- `LOG_WORLD=0` keeps only connection/host lifecycle logs.
+
 ## Connect from client
 
 In the game menu:
@@ -40,6 +49,7 @@ In the game menu:
 
 ## Notes
 
-- This is a realtime player-sync baseline (positions + nick + hp + level).
-- It does not yet make enemies/loot authoritative.
+- Sync includes players, player bullets, and host snapshots for enemies/bosses.
+- Training mode can run in multiplayer sessions.
+- World simulation is still host-driven (not full dedicated authoritative combat).
 - Use a process manager for production, for example systemd or pm2.

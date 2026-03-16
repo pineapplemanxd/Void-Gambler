@@ -963,18 +963,27 @@ class GameScene extends Phaser.Scene{
 
   _initMultiplayer(){
     this._mpLocalId='';
+    this._mpHostId='';
+    this._mpIsHost=false;
     this._mpSocket=null;
     this._mpSendAt=0;
+    this._mpWorldSendAt=0;
+    this._mpRidSeq=0;
+    this._mpRemoteWorldAt=0;
     this._mpRemotePlayers=new Map();
+    this._mpRemoteBullets=new Map();
+    this._mpRemoteEnemies=new Map();
+    this._mpRemoteBosses=new Map();
     this._mpServer=this._sanitizeServer(MULTI_CFG.server);
     this._mpNick=this._sanitizeNick(MULTI_CFG.nick);
     this._mpLabel=this.add.text(12,GH-12,'MP: connecting...',{fontSize:'12px',fontFamily:'"Share Tech Mono","Courier New",monospace',color:'#8ec8ff',stroke:'#000',strokeThickness:3}).setScrollFactor(0).setDepth(60).setOrigin(0,1);
+    this._mpModeLabel=this.add.text(12,GH-30,'',{fontSize:'11px',fontFamily:'"Share Tech Mono","Courier New",monospace',color:'#8ec8ff',stroke:'#000',strokeThickness:3}).setScrollFactor(0).setDepth(60).setOrigin(0,1).setVisible(false);
     let ws;
     try{ws=new WebSocket(this._mpServer);}catch(e){this._notify('MULTIPLAYER ERROR: BAD SERVER ADDRESS','#ff7777');this._mpLabel.setText('MP: offline');return;}
     this._mpSocket=ws;
     ws.onopen=()=>{
       try{ws.send(JSON.stringify({type:'hello',nick:this._mpNick}));}catch(e){}
-      this._mpLabel.setText('MP: connected as '+this._mpNick);
+      this._mpLabel.setText('MP: connected as '+this._mpNick+' (syncing)');
       this._notify('MULTIPLAYER CONNECTED','#66ccff');
     };
     ws.onerror=()=>{if(this._mpLabel)this._mpLabel.setText('MP: connection error');};
@@ -985,9 +994,13 @@ class GameScene extends Phaser.Scene{
       if(!msg||typeof msg!=='object')return;
       if(msg.type==='welcome'){
         this._mpLocalId=String(msg.id||'');
+        this._mpHostId=String(msg.hostId||'');
+        this._mpUpdateRole();
         return;
       }
       if(msg.type==='snapshot'&&Array.isArray(msg.players)){
+        this._mpHostId=String(msg.hostId||this._mpHostId||'');
+        this._mpUpdateRole();
         const seen=new Set();
         msg.players.forEach(p=>{
           if(!p||typeof p!=='object')return;
@@ -1004,15 +1017,169 @@ class GameScene extends Phaser.Scene{
           const nx=Number(p.x)||0,ny=Number(p.y)||0;
           rp.body.setPosition(nx,ny);
           rp.txt.setPosition(nx,ny-18).setText(this._sanitizeNick(p.nick||'Player'));
+          this._mpRenderRemotePlayerBullets(id,Array.isArray(p.bullets)?p.bullets:[]);
         });
         this._mpRemotePlayers.forEach((rp,id)=>{
           if(seen.has(id))return;
           rp.body.destroy();
           rp.txt.destroy();
           this._mpRemotePlayers.delete(id);
+          this._mpClearRemoteBulletsFor(id);
         });
+        if(msg.world&&this._mpLocalId&&this._mpHostId&&this._mpHostId!==this._mpLocalId){
+          this._mpApplyRemoteWorld(msg.world);
+        }
       }
     };
+  }
+
+  _mpUpdateRole(){
+    const prev=this._mpIsHost;
+    this._mpIsHost=!!(this._mpLocalId&&this._mpHostId&&this._mpLocalId===this._mpHostId);
+    if(this._mpLabel){
+      const role=this._mpIsHost?'host':'client';
+      this._mpLabel.setText('MP: '+role+' '+this._mpNick);
+    }
+    if(prev!==this._mpIsHost&&this._mpLocalId){
+      this._notify(this._mpIsHost?'YOU ARE THE HOST':'CONNECTED TO HOST','#7fd1ff');
+    }
+  }
+
+  _mpAllocRid(prefix){
+    this._mpRidSeq=(this._mpRidSeq||0)+1;
+    return prefix+this._mpRidSeq;
+  }
+
+  _mpRenderRemotePlayerBullets(playerId,list){
+    const seen=new Set();
+    for(let i=0;i<list.length&&i<90;i++){
+      const b=list[i]||{};
+      const rid=String(b.rid||('idx'+i));
+      const key=playerId+':'+rid;
+      seen.add(key);
+      let obj=this._mpRemoteBullets.get(key);
+      const kind=(b.kind==='m'?'m':(b.kind==='p'?'p':'b'));
+      const tint=Number.isFinite(b.tint)?(b.tint>>>0):0xe8e8ff;
+      if(!obj){
+        const shape=(kind==='m')?this.add.circle(0,0,5,tint,.74).setDepth(8):this.add.rectangle(0,0,kind==='p'?8:13,kind==='p'?8:4,tint,.74).setDepth(8);
+        obj={shape,kind};
+        this._mpRemoteBullets.set(key,obj);
+      }
+      const x=Number(b.x)||0,y=Number(b.y)||0,vx=Number(b.vx)||0,vy=Number(b.vy)||0;
+      const sc=Math.max(.3,Math.min(2.4,Number(b.scale)||1));
+      obj.kind=kind;
+      obj.shape.setPosition(x,y).setScale(sc).setVisible(true);
+      if(obj.shape.setFillStyle)obj.shape.setFillStyle(tint,.74);
+      else obj.shape.setTint(tint);
+      if(obj.shape.setRotation)obj.shape.setRotation(Math.atan2(vy,vx));
+    }
+    this._mpRemoteBullets.forEach((obj,key)=>{
+      if(!key.startsWith(playerId+':'))return;
+      if(seen.has(key))return;
+      if(obj&&obj.shape)obj.shape.destroy();
+      this._mpRemoteBullets.delete(key);
+    });
+  }
+
+  _mpClearRemoteBulletsFor(playerId){
+    this._mpRemoteBullets.forEach((obj,key)=>{
+      if(!key.startsWith(playerId+':'))return;
+      if(obj&&obj.shape)obj.shape.destroy();
+      this._mpRemoteBullets.delete(key);
+    });
+  }
+
+  _mpCollectLocalBullets(){
+    const out=[];
+    const pull=(group,kind)=>{
+      if(!group)return;
+      group.getChildren().forEach(p=>{
+        if(!p||!p.active||!p.body||!p.body.enable)return;
+        if(out.length>=90)return;
+        if(!p._mpRid)p._mpRid=this._mpAllocRid('pb');
+        out.push({
+          rid:p._mpRid,
+          kind,
+          x:Math.round(p.x),
+          y:Math.round(p.y),
+          vx:Math.round(p.body.velocity.x||0),
+          vy:Math.round(p.body.velocity.y||0),
+          tint:Number.isFinite(p.tintTopLeft)?(p.tintTopLeft>>>0):0xffffff,
+          scale:Number(p.scaleX||1),
+        });
+      });
+    };
+    pull(this.bullets,'b');
+    pull(this.pellets,'p');
+    pull(this.missiles,'m');
+    return out;
+  }
+
+  _mpCollectWorldState(){
+    const world={mode:{training:!!this._trainingMode,bossKey:this._trainingBossKey||'',hard:!!this._hardMode},enemies:[],bosses:[]};
+    this.enemies.getChildren().forEach(e=>{
+      if(!e||!e.active)return;
+      if(!e._mpRid)e._mpRid=this._mpAllocRid(e._isBoss?'bo':'en');
+      const row={rid:e._mpRid,key:String((e.etype&&e.etype.key)||'enemy'),x:Math.round(e.x),y:Math.round(e.y),hp:Math.max(0,Math.round(e.hp||0)),maxHp:Math.max(1,Math.round(e.maxHp||1))};
+      if(e._isBoss){
+        if(world.bosses.length<10){
+          row.phase2=!!e._phase2;
+          row.name=String((e._bossType&&e._bossType.name)||row.key||'Boss');
+          world.bosses.push(row);
+        }
+      }else if(world.enemies.length<140){
+        world.enemies.push(row);
+      }
+    });
+    return world;
+  }
+
+  _mpApplyRemoteWorld(world){
+    if(!world||typeof world!=='object')return;
+    this._mpRemoteWorldAt=this.time.now;
+    const mode=world.mode&&typeof world.mode==='object'?world.mode:null;
+    if(mode&&this._mpModeLabel){
+      const parts=[];
+      if(mode.training)parts.push('TRAINING');
+      if(mode.hard)parts.push('HARD');
+      if(mode.bossKey)parts.push(String(mode.bossKey));
+      this._mpModeLabel.setVisible(parts.length>0).setText(parts.length?('MP MODE: '+parts.join(' · ')):'' );
+    }
+    const seenE=new Set();
+    const seenB=new Set();
+    const enemies=Array.isArray(world.enemies)?world.enemies:[];
+    const bosses=Array.isArray(world.bosses)?world.bosses:[];
+    for(let i=0;i<enemies.length&&i<140;i++){
+      const e=enemies[i]||{};
+      const rid=String(e.rid||('e'+i));
+      seenE.add(rid);
+      let obj=this._mpRemoteEnemies.get(rid);
+      if(!obj){
+        const body=this.add.circle(0,0,8,0xff3344,.26).setDepth(4).setStrokeStyle(1,0xff6677,.9);
+        obj={body};
+        this._mpRemoteEnemies.set(rid,obj);
+      }
+      obj.body.setPosition(Number(e.x)||0,Number(e.y)||0).setVisible(true);
+    }
+    for(let i=0;i<bosses.length&&i<10;i++){
+      const b=bosses[i]||{};
+      const rid=String(b.rid||('b'+i));
+      seenB.add(rid);
+      let obj=this._mpRemoteBosses.get(rid);
+      if(!obj){
+        const body=this.add.circle(0,0,24,0xff2266,.22).setDepth(6).setStrokeStyle(2,0xff77aa,.95);
+        const txt=this.add.text(0,0,'',{fontSize:'11px',fontFamily:'"Share Tech Mono","Courier New",monospace',color:'#ffd8e8',stroke:'#000',strokeThickness:3}).setDepth(7).setOrigin(.5,1);
+        obj={body,txt};
+        this._mpRemoteBosses.set(rid,obj);
+      }
+      const x=Number(b.x)||0,y=Number(b.y)||0;
+      const hp=Math.max(0,Number(b.hp)||0),maxHp=Math.max(1,Number(b.maxHp)||1);
+      const pct=Math.floor((hp/maxHp)*100);
+      obj.body.setPosition(x,y).setRadius((b.phase2?28:24)).setVisible(true);
+      obj.txt.setPosition(x,y-30).setText(String(b.name||b.key||'Boss')+' '+pct+'%').setVisible(true);
+    }
+    this._mpRemoteEnemies.forEach((obj,id)=>{if(seenE.has(id))return;obj.body.destroy();this._mpRemoteEnemies.delete(id);});
+    this._mpRemoteBosses.forEach((obj,id)=>{if(seenB.has(id))return;obj.body.destroy();obj.txt.destroy();this._mpRemoteBosses.delete(id);});
   }
 
   _mpTick(time,px,py){
@@ -1020,7 +1187,16 @@ class GameScene extends Phaser.Scene{
     if(!ws||ws.readyState!==1)return;
     if(time<(this._mpSendAt||0))return;
     this._mpSendAt=time+80;
-    try{ws.send(JSON.stringify({type:'state',x:Math.round(px),y:Math.round(py),hp:Math.round(S.hp),level:Math.round(S.level),nick:this._mpNick}));}catch(e){}
+    try{ws.send(JSON.stringify({type:'state',x:Math.round(px),y:Math.round(py),hp:Math.round(S.hp),level:Math.round(S.level),nick:this._mpNick,bullets:this._mpCollectLocalBullets()}));}catch(e){}
+    if(this._mpIsHost&&time>(this._mpWorldSendAt||0)){
+      this._mpWorldSendAt=time+220;
+      try{ws.send(JSON.stringify({type:'world',world:this._mpCollectWorldState()}));}catch(e){}
+    }
+    if(!this._mpIsHost&&this._mpRemoteWorldAt&&time-this._mpRemoteWorldAt>4500){
+      this._mpRemoteEnemies.forEach((obj)=>{if(obj&&obj.body)obj.body.setVisible(false);});
+      this._mpRemoteBosses.forEach((obj)=>{if(obj&&obj.body)obj.body.setVisible(false);if(obj&&obj.txt)obj.txt.setVisible(false);});
+      if(this._mpModeLabel)this._mpModeLabel.setVisible(false);
+    }
   }
 
   _teardownMultiplayer(){
@@ -1032,7 +1208,20 @@ class GameScene extends Phaser.Scene{
       this._mpRemotePlayers.forEach(rp=>{try{rp.body.destroy();rp.txt.destroy();}catch(e){}});
       this._mpRemotePlayers.clear();
     }
+    if(this._mpRemoteBullets){
+      this._mpRemoteBullets.forEach(obj=>{try{if(obj&&obj.shape)obj.shape.destroy();}catch(e){}});
+      this._mpRemoteBullets.clear();
+    }
+    if(this._mpRemoteEnemies){
+      this._mpRemoteEnemies.forEach(obj=>{try{if(obj&&obj.body)obj.body.destroy();}catch(e){}});
+      this._mpRemoteEnemies.clear();
+    }
+    if(this._mpRemoteBosses){
+      this._mpRemoteBosses.forEach(obj=>{try{if(obj&&obj.body)obj.body.destroy();if(obj&&obj.txt)obj.txt.destroy();}catch(e){}});
+      this._mpRemoteBosses.clear();
+    }
     if(this._mpLabel){this._mpLabel.destroy();this._mpLabel=null;}
+    if(this._mpModeLabel){this._mpModeLabel.destroy();this._mpModeLabel=null;}
   }
 
   _applyCharacter(){
@@ -1128,7 +1317,7 @@ class GameScene extends Phaser.Scene{
     this._rpcNextAt=0;
     this._rpcLastLevel=-1;
     this._rpcLastBoss='';
-    this._mpEnabled=!!(MULTI_CFG.enabled&&!this._trainingMode);
+    this._mpEnabled=!!MULTI_CFG.enabled;
     this.gunMap=Object.fromEntries(GUNS.map(g=>[g.id,g]));
     this._applyCharacter();
     if(this._trainingMode){
